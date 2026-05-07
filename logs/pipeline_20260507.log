@@ -1,0 +1,48 @@
+2026-05-07 23:31:07 | INFO     | __main__ | ========================================
+2026-05-07 23:31:07 | INFO     | __main__ | ADIM 1: Veri yukleme basladi
+2026-05-07 23:31:07 | INFO     | __main__ | ========================================
+2026-05-07 23:31:07 | INFO     | __main__ | orders yuklendi → 99,441 satir, 8 sutun
+2026-05-07 23:31:07 | INFO     | __main__ | items yuklendi → 112,650 satir, 7 sutun
+2026-05-07 23:31:08 | INFO     | __main__ | reviews yuklendi → 99,224 satir, 7 sutun
+2026-05-07 23:31:08 | INFO     | __main__ | products yuklendi → 32,951 satir, 9 sutun
+2026-05-07 23:31:08 | INFO     | __main__ | customers yuklendi → 99,441 satir, 5 sutun
+2026-05-07 23:31:08 | INFO     | __main__ | sellers yuklendi → 3,095 satir, 4 sutun
+2026-05-07 23:31:08 | INFO     | __main__ | payments yuklendi → 103,886 satir, 5 sutun
+2026-05-07 23:31:08 | INFO     | __main__ | orders validasyonu gecti
+2026-05-07 23:31:08 | INFO     | __main__ | items validasyonu gecti
+2026-05-07 23:31:08 | INFO     | __main__ | Tablolar birlestiriliyor...
+2026-05-07 23:31:08 | INFO     | __main__ | orders + items → 113,425 satir
+2026-05-07 23:31:08 | INFO     | __main__ | + customers → 113,425 satir
+2026-05-07 23:31:08 | INFO     | __main__ | + products → 113,425 satir
+2026-05-07 23:31:08 | INFO     | __main__ | + sellers → 113,425 satir
+2026-05-07 23:31:08 | INFO     | __main__ | + payments → 113,425 satir
+2026-05-07 23:31:08 | INFO     | __main__ | + reviews → 113,425 satir
+2026-05-07 23:31:08 | INFO     | __main__ | Tarih kolonlari duzenlendi
+2026-05-07 23:31:08 | WARNING  | __main__ | Eksik deger raporu (25 kolon):
+2026-05-07 23:31:08 | WARNING  | __main__ |   review_comment_message: 65,430 (57.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   order_delivered_customer_date: 3,229 (2.8%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_category_name: 2,378 (2.1%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_description_lenght: 2,378 (2.1%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_name_lenght: 2,378 (2.1%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_photos_qty: 2,378 (2.1%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   order_delivered_carrier_date: 1,968 (1.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   review_score: 961 (0.8%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_height_cm: 793 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_width_cm: 793 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_weight_g: 793 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_length_cm: 793 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   seller_state: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   seller_city: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   seller_zip_code_prefix: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   shipping_limit_date: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   price: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   order_item_id: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   product_id: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   seller_id: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   freight_value: 775 (0.7%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   order_approved_at: 161 (0.1%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   odeme_turu: 3 (0.0%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   taksit_sayisi: 3 (0.0%)
+2026-05-07 23:31:08 | WARNING  | __main__ |   toplam_odeme: 3 (0.0%)
+2026-05-07 23:31:10 | INFO     | __main__ | Birlestirilmis veri kaydedildi → data/processed/merged.parquet
+2026-05-07 23:31:10 | INFO     | __main__ | Final boyut: 113,425 satir, 34 sutun
