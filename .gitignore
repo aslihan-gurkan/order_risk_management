@@ -1,0 +1,35 @@
+cat > .gitignore << 'EOF'
+# Ortam değişkenleri
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Veri
+data/raw/
+data/processed/
+data/outputs/
+
+# Modeller
+models/
+
+# Loglar
+logs/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+EOF
