@@ -36,17 +36,20 @@ FILES = {
 
 # ── İşlenmiş veri dosyaları ───────────────────────────────────────────────────
 PROCESSED_FILES = {
-    "merged"  : os.path.join(PROCESSED_PATH, "merged.parquet"),
-    "featured": os.path.join(PROCESSED_PATH, "featured.parquet"),
-    "train"   : os.path.join(PROCESSED_PATH, "train.parquet"),
-    "test"    : os.path.join(PROCESSED_PATH, "test.parquet"),
+    "order_items_level"  : os.path.join(PROCESSED_PATH, "order_items_level.parquet"),
+    "order_level"        : os.path.join(PROCESSED_PATH, "order_level.parquet"),
+    "order_level_labeled": os.path.join(PROCESSED_PATH, "order_level_labeled.parquet"),
+    "featured"           : os.path.join(PROCESSED_PATH, "featured.parquet"),
+    "train"              : os.path.join(PROCESSED_PATH, "train.parquet"),
+    "test"               : os.path.join(PROCESSED_PATH, "test.parquet"),
 }
 
 # ── Model dosyaları ───────────────────────────────────────────────────────────
 MODEL_FILES = {
-    "pipeline"   : os.path.join(MODELS_PATH, "pipeline.pkl"),
-    "best_model" : os.path.join(MODELS_PATH, "best_model.pkl"),
-    "fraud_model": os.path.join(MODELS_PATH, "fraud_model.pkl"),
+    "preprocessor": os.path.join(MODELS_PATH, "preprocessor.pkl"),
+    "best_model"  : os.path.join(MODELS_PATH, "best_model.pkl"),
+    "pipeline"    : os.path.join(MODELS_PATH, "pipeline.pkl"),
+    "metrics"     : os.path.join(OUTPUTS_PATH, "model_metrics.json"),
 }
 
 # ── Klasörleri oluştur ────────────────────────────────────────────────────────
@@ -59,8 +62,44 @@ for _path in [DATA_PATH, PROCESSED_PATH, MODELS_PATH, OUTPUTS_PATH, LOGS_PATH]:
     
 
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
-POSTGRES_USER     = os.getenv("POSTGRES_USER",     "iade_user")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "iade_password123")
-POSTGRES_DB       = os.getenv("POSTGRES_DB",       "iade_db")
-POSTGRES_HOST     = os.getenv("POSTGRES_HOST",     "db")
-POSTGRES_PORT     = os.getenv("POSTGRES_PORT",     "5432")
+POSTGRES_USER     = os.getenv("POSTGRES_USER")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_DB       = os.getenv("POSTGRES_DB")
+POSTGRES_HOST     = os.getenv("POSTGRES_HOST", "db")
+POSTGRES_PORT     = os.getenv("POSTGRES_PORT", "5432")
+
+
+def get_postgres_url() -> str:
+    """
+    PostgreSQL bağlantı URL'ini üretir.
+
+    Neden ?
+        Config import edildiğinde hemen DB kontrolü yapmayız.
+        DB sadece gerçekten kullanılacağı zaman kontrol edilir.
+    """
+    if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB]):
+        raise ValueError(
+            "PostgreSQL bilgileri eksik! "
+            "POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB tanımlı olmalı."
+        )
+
+    return (
+        f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+        f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    )
+
+
+# ── Order status definitions ──────────────────────────────────────────────────
+MODELING_ORDER_STATUSES = ["delivered", "canceled", "unavailable"]
+PROBLEMATIC_ORDER_STATUSES = ["canceled", "unavailable"]
+
+# ── Label thresholds ────────────────────────────────────────────────
+DISSATISFACTION_REVIEW_THRESHOLD = 2    # review_score <= 2
+DELIVERY_DELAY_THRESHOLD         = 7    # delay > 7 days
+# LOGISTICS_DELAY_THRESHOLD     = 5     # gün
+# SELLER_RETURN_RATE_THRESHOLD  = 0.35  # oran
+
+
+# Reference date — max date in dataset + 1 day
+# Don't use datetime.now() with historical datasets
+REFERENCE_DATE = None  # will be set dynamically from data

@@ -41,12 +41,12 @@ def get_logger(name: str) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # 1) Terminal'e yaz
+    # Terminale yaz
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # 2) Dosyaya yaz — her gün yeni dosya
+    # Dosyaya yaz — her gün yeni dosya
     log_file = os.path.join(
         LOGS_PATH,
         f"pipeline_{datetime.now().strftime('%Y%m%d')}.log"
