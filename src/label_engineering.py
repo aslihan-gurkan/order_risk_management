@@ -56,7 +56,7 @@ def filter_modeling_orders(df: pd.DataFrame) -> pd.DataFrame:
 
     after = len(df)
     logger.info(
-        f"Sonucu belirsiz siparişler çıkarıldı → "
+        f"Sonucu belirsiz siparişler çıkarıldı -> "
         f"{before - after:,} satır çıkarıldı, {after:,} satır kaldı"
     )
 
@@ -111,7 +111,7 @@ def calculate_delivery_delay(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     logger.info(
-        f"Teslimat gecikmesi hesaplandı → "
+        f"Teslimat gecikmesi hesaplandı -> "
         f"teslim edilmeyen: {undelivered_count:,}, "
         f"teslim edilen ortalama gecikme: {delivered_delays.mean():.1f} gün"
     )
@@ -142,8 +142,8 @@ def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
         (df["is_undelivered"] == 0) &
         (df["delivery_delay_days"] > DELIVERY_DELAY_THRESHOLD)
     ).astype(int) 
-    # Teslim edildiyse ve geç kaldıysa → delivery delay
-    # Teslim edilmediyse → status problem
+    # Teslim edildiyse ve geç kaldıysa -> delivery delay
+    # Teslim edilmediyse -> status problem
 
     df["label_problematic_status"] = (
         df["order_status"].isin(PROBLEMATIC_ORDER_STATUSES)
@@ -246,7 +246,7 @@ def run() -> pd.DataFrame:
 
     df = pd.read_parquet(path)
 
-    logger.info(f"Order-level veri yüklendi → {df.shape[0]:,} satır, {df.shape[1]} kolon")
+    logger.info(f"Order-level veri yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} kolon")
 
     df = filter_modeling_orders(df)
     df = calculate_delivery_delay(df)
@@ -259,8 +259,8 @@ def run() -> pd.DataFrame:
     df.to_parquet(output_path, index=False)
 
     logger.info("=" * 60)
-    logger.info("ADIM 2 tamamlandı ✓")
-    logger.info(f"Kaydedildi → {output_path}")
+    logger.info("ADIM 2 tamamlandı")
+    logger.info(f"Kaydedildi -> {output_path}")
     logger.info(f"Final boyut: {df.shape[0]:,} satır, {df.shape[1]} kolon")
     logger.info("=" * 60)
 

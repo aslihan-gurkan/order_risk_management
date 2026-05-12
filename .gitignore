@@ -1,4 +1,3 @@
-
 # Ortam değişkenleri
 .env
 
@@ -10,15 +9,17 @@ venv/
 .venv/
 
 # Veri
-data/raw/
-data/processed/
-data/outputs/
+data/raw/*
+data/processed/*
+data/outputs/*
 
 # Modeller
-models/
+models/*.pkl
+models/*.joblib
+models/*.bin
 
 # Loglar
-logs/
+logs/*.log
 
 # VS Code
 .vscode/
@@ -32,4 +33,6 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
-EOF
+
+# Build
+*.egg-info/

@@ -51,24 +51,24 @@ def merge_tables(
     """
     logger.info("Tablolar birlestiriliyor...")
 
-    # orders + items → item-level'a iner, bu beklenen davranış
+    # orders + items -> item-level'a iner, bu beklenen davranış
     df = orders.merge(items, on="order_id", how="left")
     logger.info(
-        f"orders + items → {df.shape[0]:,} satir "
+        f"orders + items -> {df.shape[0]:,} satir "
         f"({df['order_id'].nunique():,} unique siparis)"
     )
 
     # + customers
     df = df.merge(customers, on="customer_id", how="left")
-    logger.info(f"+ customers → {df.shape[0]:,} satir")
+    logger.info(f"+ customers -> {df.shape[0]:,} satir")
 
     # + products
     df = df.merge(products, on="product_id", how="left")
-    logger.info(f"+ products → {df.shape[0]:,} satir")
+    logger.info(f"+ products -> {df.shape[0]:,} satir")
 
     # + sellers
     df = df.merge(sellers, on="seller_id", how="left")
-    logger.info(f"+ sellers → {df.shape[0]:,} satir")
+    logger.info(f"+ sellers -> {df.shape[0]:,} satir")
 
     # + payments
     # Birden fazla ödeme tipi varsa hepsini sakla, bilgi kaybetme
@@ -78,7 +78,7 @@ def merge_tables(
         toplam_odeme=("payment_value", "sum"),
     ).reset_index()
     df = df.merge(payments_agg, on="order_id", how="left")
-    logger.info(f"+ payments → {df.shape[0]:,} satir")
+    logger.info(f"+ payments -> {df.shape[0]:,} satir")
 
     # + reviews
     # review_creation_date önce datetime'a çevrilmeli, sonra sırala
@@ -96,6 +96,6 @@ def merge_tables(
         on="order_id",
         how="left"
     )
-    logger.info(f"+ reviews → {df.shape[0]:,} satir")
+    logger.info(f"+ reviews -> {df.shape[0]:,} satir")
 
     return df
