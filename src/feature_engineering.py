@@ -318,7 +318,7 @@ def run() -> pd.DataFrame:
         Modellemeye hazır feature seti
     """
     logger.info("=" * 60)
-    logger.info("ADIM 3: Feature engineering başladı")
+    logger.info("ADIM 3B: Feature engineering başladı")
     logger.info("=" * 60)
 
     order_path = PROCESSED_FILES["order_level_labeled"]

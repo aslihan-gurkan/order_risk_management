@@ -135,12 +135,18 @@ def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
     df["label_delivery_delay"] = (
         (df["is_undelivered"] == 0) &
         (df["delivery_delay_days"] > DELIVERY_DELAY_THRESHOLD)
+<<<<<<< HEAD
     ).astype(int)
 
     df["label_severe_delivery_delay"] = (
         (df["is_undelivered"] == 0) &
         (df["delivery_delay_days"] > 15)
     ).astype(int)
+=======
+    ).astype(int) 
+    # Teslim edildiyse ve geç kaldıysa -> delivery delay
+    # Teslim edilmediyse -> status problem
+>>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     df["label_problematic_status"] = (
         df["order_status"].isin(PROBLEMATIC_ORDER_STATUSES)
@@ -252,9 +258,13 @@ def run() -> pd.DataFrame:
 
     df = pd.read_parquet(path)
 
+<<<<<<< HEAD
     logger.info(
         f"Order-level veri yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} kolon"
     )
+=======
+    logger.info(f"Order-level veri yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} kolon")
+>>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     df = filter_modeling_orders(df)
     df = calculate_delivery_delay(df)

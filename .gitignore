@@ -35,4 +35,5 @@ htmlcov/
 .pytest_cache/
 
 # Build
-*.egg-info/
+*.egg-info/__pycache__/
+*.pyc
