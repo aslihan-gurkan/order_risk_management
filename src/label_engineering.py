@@ -1,10 +1,9 @@
-# 2
 """
 Label engineering modülü.
 
 Amaç:
     Olist veri setinde gerçek "iade" label'ı olmadığı için
-    iş problemiyle uyumlu bir binary hedef değişken üretmek.
+    iş problemiyle uyumlu, açıklanabilir bir binary hedef değişken üretmek.
 
 Problem:
     Sipariş tamamlanmadan önce sorunlu sipariş riskini tahmin etmek.
@@ -14,21 +13,16 @@ Hedef değişken:
         0 = normal sipariş
         1 = sorunlu sipariş
 
-Sorunlu sipariş tanımı:
-    1. review_score <= 2
-    VEYA
-    2. delivery_delay_days > 7
-    VEYA
-    3. order_status canceled/unavailable
-
-Önemli:
-    Review score ve gerçek teslimat tarihi label üretmek için kullanılır.
-    Model feature'ı olarak kullanılmaz.
+Kritik prensip:
+    Review score ve gerçek teslimat bilgisi label üretiminde kullanılabilir.
+    Ancak model feature'ı olarak kullanılmaz.
     Aksi halde data leakage oluşur.
 """
+
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 from src.config import (
     PROCESSED_FILES,
@@ -46,17 +40,17 @@ def filter_modeling_orders(df: pd.DataFrame) -> pd.DataFrame:
     """
     Sadece sonucu belli olan siparişleri tutar.
 
-    Neden?
-        shipped, invoiced, processing gibi statülerde sipariş sonucu belirsizdir.
-        Bu satırlara doğru label veremeyiz.
+    shipped, invoiced, processing gibi statülerde sipariş sonucu belirsizdir.
+    Bu satırlara güvenilir label veremeyiz.
     """
     before = len(df)
 
     df = df[df["order_status"].isin(MODELING_ORDER_STATUSES)].copy()
 
     after = len(df)
+
     logger.info(
-        f"Sonucu belirsiz siparişler çıkarıldı → "
+        f"Sonucu belirsiz siparişler çıkarıldı -> "
         f"{before - after:,} satır çıkarıldı, {after:,} satır kaldı"
     )
 
@@ -81,18 +75,8 @@ def calculate_delivery_delay(df: pd.DataFrame) -> pd.DataFrame:
     Negatif değer:
         Erken teslim edildi.
 
-    Teslim edilmeyen siparişlerde ne yapıyoruz?
-        Gerçek teslimat tarihi olmadığı için delivery_delay_days NaN olur.
-        Bunları 999 ile dolduruyoruz.
-
-    Neden 999?
-        Bu değer label üretiminde "teslim edilmedi" sinyali olarak kullanılır.
-        Ancak model feature'ı olarak kullanılmayacak.
-        Bu yüzden leakage yaratmaz.
-
-    Ek olarak:
-        is_undelivered kolonu oluşturulur.
-        Bu kolon da label analizinde kullanılır.
+    Teslim edilmeyen siparişlerde delivery_delay_days 999 yapılır.
+    Bu bilgi sadece label üretiminde kullanılır, model feature'ı olmaz.
     """
     df["delivery_delay_days"] = (
         df["order_delivered_customer_date"] -
@@ -111,7 +95,7 @@ def calculate_delivery_delay(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     logger.info(
-        f"Teslimat gecikmesi hesaplandı → "
+        f"Teslimat gecikmesi hesaplandı -> "
         f"teslim edilmeyen: {undelivered_count:,}, "
         f"teslim edilen ortalama gecikme: {delivered_delays.mean():.1f} gün"
     )
@@ -121,39 +105,71 @@ def calculate_delivery_delay(df: pd.DataFrame) -> pd.DataFrame:
 
 def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Binary hedef değişkeni oluşturur.
+    Binary hedef değişkeni risk_score mantığıyla oluşturur.
 
-    Üç sinyal OR mantığıyla birleşir:
-        - düşük review score
-        - ciddi teslimat gecikmesi
-        - canceled/unavailable status
+    Neden eski OR mantığını değiştirdik?
+        Eski yaklaşımda review_score <= 2 tek başına problematic_order=1 yapıyordu.
+        Bu da target'ı düşük review sinyalinin domine etmesine ve noisy label'a neden oluyordu.
 
-    Neden sinyal kolonları oluşturuyoruz?
-        EDA ve sunumda "problematic_order neden oluştu?"
-        sorusuna açıklanabilir cevap verebilmek için.
+    Yeni yaklaşım:
+        - Çok ciddi status problemi güçlü sinyal
+        - Ciddi teslimat gecikmesi güçlü sinyal
+        - Düşük review yardımcı sinyal
+        - Çok düşük review daha güçlü yardımcı sinyal
+
+    Not:
+        freight_ratio, seller_count gibi model feature'ı olacak alanları label üretiminde
+        kullanmıyoruz. Böylece modelin target kuralını doğrudan öğrenmesini engelliyoruz.
     """
     review_score = df["review_score"].fillna(3)
 
+    # Açıklanabilir label sinyal kolonları
     df["label_low_review"] = (
         review_score <= DISSATISFACTION_REVIEW_THRESHOLD
+    ).astype(int)
+
+    df["label_very_low_review"] = (
+        review_score <= 1
     ).astype(int)
 
     df["label_delivery_delay"] = (
         (df["is_undelivered"] == 0) &
         (df["delivery_delay_days"] > DELIVERY_DELAY_THRESHOLD)
-    ).astype(int) 
-    # Teslim edildiyse ve geç kaldıysa → delivery delay
-    # Teslim edilmediyse → status problem
+    ).astype(int)
+
+    df["label_severe_delivery_delay"] = (
+        (df["is_undelivered"] == 0) &
+        (df["delivery_delay_days"] > 15)
+    ).astype(int)
 
     df["label_problematic_status"] = (
         df["order_status"].isin(PROBLEMATIC_ORDER_STATUSES)
     ).astype(int)
 
-    df["problematic_order"] = (
-        (df["label_low_review"] == 1) |
-        (df["label_delivery_delay"] == 1) |
-        (df["label_problematic_status"] == 1)
-    ).astype(int)
+    # Risk score
+    df["risk_score"] = 0
+
+    # Review yardımcı sinyal: tek başına target'ı domine etmesin
+    df.loc[df["label_low_review"] == 1, "risk_score"] += 1
+    df.loc[df["label_very_low_review"] == 1, "risk_score"] += 1
+
+    # Teslimat gecikmesi daha operasyonel ve güçlü sinyal
+    df.loc[df["label_delivery_delay"] == 1, "risk_score"] += 2
+    df.loc[df["label_severe_delivery_delay"] == 1, "risk_score"] += 1
+
+    # Canceled / unavailable en güçlü sinyal
+    df.loc[df["label_problematic_status"] == 1, "risk_score"] += 4
+
+    # Final target
+    # 3 ve üzeri:
+    #   - ciddi gecikme
+    #   - status problemi
+    #   - çok düşük review + başka sinyal kombinasyonu
+    # gibi daha anlamlı problematic order'ları yakalar.
+    df["problematic_order"] = (df["risk_score"] >= 3).astype(int)
+
+    logger.info("Risk score dağılımı:")
+    logger.info(df["risk_score"].value_counts().sort_index().to_string())
 
     total = len(df)
     problematic = df["problematic_order"].sum()
@@ -164,9 +180,11 @@ def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(f"  Problematic (1): {problematic:,} ({problematic / total:.1%})")
 
     logger.info("Label sinyalleri:")
-    logger.info(f"  Düşük review      : {df['label_low_review'].sum():,}")
-    logger.info(f"  Teslimat gecikmesi: {df['label_delivery_delay'].sum():,}")
-    logger.info(f"  Status problemi   : {df['label_problematic_status'].sum():,}")
+    logger.info(f"  Düşük review          : {df['label_low_review'].sum():,}")
+    logger.info(f"  Çok düşük review      : {df['label_very_low_review'].sum():,}")
+    logger.info(f"  Teslimat gecikmesi    : {df['label_delivery_delay'].sum():,}")
+    logger.info(f"  Ciddi teslimat gecikmesi: {df['label_severe_delivery_delay'].sum():,}")
+    logger.info(f"  Status problemi       : {df['label_problematic_status'].sum():,}")
 
     return df
 
@@ -204,29 +222,17 @@ def add_customer_history(df: pd.DataFrame) -> pd.DataFrame:
 def report_class_balance(df: pd.DataFrame) -> None:
     """
     Hedef değişken dağılımını raporlar.
-
-    Bu bilgi preprocessing aşamasında:
-        - class_weight
-        - SMOTE
-        - threshold tuning
-    kararları için kullanılır.
     """
     total = len(df)
     problematic = df["problematic_order"].sum()
     ratio = problematic / total
 
     if ratio < 0.10:
-        logger.warning(
-            f"Ciddi class imbalance: problematic oranı {ratio:.1%}"
-        )
+        logger.warning(f"Ciddi class imbalance: problematic oranı {ratio:.1%}")
     elif ratio < 0.30:
-        logger.warning(
-            f"Hafif class imbalance: problematic oranı {ratio:.1%}"
-        )
+        logger.warning(f"Hafif class imbalance: problematic oranı {ratio:.1%}")
     else:
-        logger.info(
-            f"Class balance kabul edilebilir: problematic oranı {ratio:.1%}"
-        )
+        logger.info(f"Class balance kabul edilebilir: problematic oranı {ratio:.1%}")
 
 
 def run() -> pd.DataFrame:
@@ -246,7 +252,9 @@ def run() -> pd.DataFrame:
 
     df = pd.read_parquet(path)
 
-    logger.info(f"Order-level veri yüklendi → {df.shape[0]:,} satır, {df.shape[1]} kolon")
+    logger.info(
+        f"Order-level veri yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} kolon"
+    )
 
     df = filter_modeling_orders(df)
     df = calculate_delivery_delay(df)
@@ -259,8 +267,8 @@ def run() -> pd.DataFrame:
     df.to_parquet(output_path, index=False)
 
     logger.info("=" * 60)
-    logger.info("ADIM 2 tamamlandı ✓")
-    logger.info(f"Kaydedildi → {output_path}")
+    logger.info("ADIM 2 tamamlandı")
+    logger.info(f"Kaydedildi -> {output_path}")
     logger.info(f"Final boyut: {df.shape[0]:,} satır, {df.shape[1]} kolon")
     logger.info("=" * 60)
 

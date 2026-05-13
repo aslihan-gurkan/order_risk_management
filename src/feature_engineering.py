@@ -154,6 +154,48 @@ def add_location_features(order_df: pd.DataFrame, item_df: pd.DataFrame) -> pd.D
     return df
 
 
+
+def add_product_physical_features(order_df: pd.DataFrame, item_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ürün fiziksel özelliklerinden order-level feature üretir.
+
+    Neden?
+        Ağır, hacimli veya katalog bilgisi zayıf ürünler
+        lojistik problem ve müşteri memnuniyetsizliği riskini artırabilir.
+
+    Örnek:
+        - ağır ürün: taşıma/hasar/gecikme riski
+        - yüksek hacim: lojistik operasyon zorluğu
+        - az fotoğraf/açıklama: müşteri beklentisi uyuşmazlığı
+    """
+    df_items = item_df.copy()
+
+    df_items["product_volume_cm3"] = (
+        df_items["product_length_cm"].fillna(0)
+        * df_items["product_height_cm"].fillna(0)
+        * df_items["product_width_cm"].fillna(0)
+    )
+
+    product_features = (
+        df_items
+        .groupby("order_id", as_index=False)
+        .agg(
+            total_product_weight_g=("product_weight_g", "sum"),
+            avg_product_weight_g=("product_weight_g", "mean"),
+            max_product_weight_g=("product_weight_g", "max"),
+            total_product_volume_cm3=("product_volume_cm3", "sum"),
+            avg_product_volume_cm3=("product_volume_cm3", "mean"),
+            max_product_volume_cm3=("product_volume_cm3", "max"),
+            avg_product_photos_qty=("product_photos_qty", "mean"),
+            avg_product_description_length=("product_description_lenght", "mean"),
+        )
+    )
+
+    df = order_df.merge(product_features, on="order_id", how="left")
+
+    logger.info("Ürün fiziksel ve katalog feature'ları oluşturuldu")
+    return df
+
 # ── Ürün kategori feature'ları ────────────────────────────────────────────────
 def add_product_category_features(order_df: pd.DataFrame, item_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -176,6 +218,8 @@ def add_product_category_features(order_df: pd.DataFrame, item_df: pd.DataFrame)
     df = order_df.merge(category_features, on="order_id", how="left")
     df["main_product_category"] = df["main_product_category"].fillna("unknown")
     df["category_count"] = df["category_count"].fillna(0)
+
+    df["is_unknown_category"] = (df["main_product_category"] == "unknown").astype(int)
 
     logger.info("Ürün kategori feature'ları oluşturuldu")
     return df
@@ -244,6 +288,7 @@ def drop_leakage_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     leakage_cols = [
     "review_score",
+    "risk_score",
     "review_creation_date",
     "review_comment_message",
     "review_missing",
@@ -253,7 +298,8 @@ def drop_leakage_columns(df: pd.DataFrame) -> pd.DataFrame:
     "label_delivery_delay",
     "label_problematic_status",
     "order_delivered_customer_date",
-    "order_delivered_carrier_date",
+    "order_delivered_carrier_date"
+
 ]
 
     existing_cols = [col for col in leakage_cols if col in df.columns]
@@ -287,8 +333,8 @@ def run() -> pd.DataFrame:
     order_df = pd.read_parquet(order_path)
     item_df = pd.read_parquet(item_path)
 
-    logger.info(f"Order-level labeled veri yüklendi → {order_df.shape}")
-    logger.info(f"Item-level veri yüklendi → {item_df.shape}")
+    logger.info(f"Order-level labeled veri yüklendi -> {order_df.shape}")
+    logger.info(f"Item-level veri yüklendi -> {item_df.shape}")
 
     df = order_df.copy()
 
@@ -297,6 +343,7 @@ def run() -> pd.DataFrame:
     df = add_logistics_features(df)
     df = add_location_features(df, item_df)
     df = add_product_category_features(df, item_df)
+    df = add_product_physical_features(df, item_df)
     df = add_historical_risk_features(df)
     df = drop_leakage_columns(df)
 
@@ -305,8 +352,8 @@ def run() -> pd.DataFrame:
     df.to_parquet(output_path, index=False)
 
     logger.info("=" * 60)
-    logger.info("ADIM 3 tamamlandı ✓")
-    logger.info(f"Featured veri kaydedildi → {output_path}")
+    logger.info("ADIM 3 tamamlandı")
+    logger.info(f"Featured veri kaydedildi -> {output_path}")
     logger.info(f"Final boyut: {df.shape[0]:,} satır, {df.shape[1]} kolon")
     logger.info("=" * 60)
 

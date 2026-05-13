@@ -46,9 +46,9 @@ PROCESSED_FILES = {
 
 # ── Model dosyaları ───────────────────────────────────────────────────────────
 MODEL_FILES = {
-    "preprocessor": os.path.join(MODELS_PATH, "preprocessor.pkl"),
-    "best_model"  : os.path.join(MODELS_PATH, "best_model.pkl"),
-    "pipeline"    : os.path.join(MODELS_PATH, "pipeline.pkl"),
+    "preprocessor": os.path.join(MODELS_PATH, "preprocessor.joblib"),
+    "best_model"  : os.path.join(MODELS_PATH, "best_model.joblib"),
+    "pipeline"    : os.path.join(MODELS_PATH, "pipeline.joblib"),
     "metrics"     : os.path.join(OUTPUTS_PATH, "model_metrics.json"),
 }
 
@@ -103,3 +103,10 @@ DELIVERY_DELAY_THRESHOLD         = 7    # delay > 7 days
 # Reference date — max date in dataset + 1 day
 # Don't use datetime.now() with historical datasets
 REFERENCE_DATE = None  # will be set dynamically from data
+
+#temporal filter - # EDA sonucunda edge period olarak görülen düşük hacimli / incomplete dönemler çıkarılır.
+# Bu filtre model training datasını daha stabil hale getirmek için kullanılır.
+TRAIN_START_DATE = os.getenv("TRAIN_START_DATE", "2017-01-01")
+TRAIN_END_DATE = os.getenv("TRAIN_END_DATE", "2018-09-01")
+APPLY_TEMPORAL_FILTER = os.getenv("APPLY_TEMPORAL_FILTER", "true").lower() == "true"
+APPLY_SMOTE = os.getenv("APPLY_SMOTE", "false").lower() == "true"

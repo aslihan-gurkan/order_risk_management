@@ -5,8 +5,8 @@ Tüm Olist CSV dosyalarını okur, validate eder, birleştirir
 ve iki farklı grain'de parquet olarak kaydeder.
 
 İki çıktı:
-    1. order_items_level.parquet → ürün/satıcı kırılımı için
-    2. order_level.parquet       → modelleme için ana tablo
+    1. order_items_level.parquet -> ürün/satıcı kırılımı için
+    2. order_level.parquet       -> modelleme için ana tablo
 
 Notlar:
     - orders + items birleşimi item-level veri üretir.
@@ -114,7 +114,7 @@ def load_csv(key: str) -> pd.DataFrame:
         )
 
     df = pd.read_csv(path)
-    logger.info(f"{key} yüklendi → {df.shape[0]:,} satır, {df.shape[1]} sütun")
+    logger.info(f"{key} yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} sütun")
     return df
 
 
@@ -142,7 +142,7 @@ def validate_dataframe(df: pd.DataFrame, name: str) -> None:
         logger.error(f"{name} tablosunda eksik kolonlar: {missing_cols}")
         raise ValueError(f"{name} tablosunda eksik kolonlar: {missing_cols}")
 
-    logger.info(f"{name} validasyonu geçti ✓")
+    logger.info(f"{name} validasyonu geçti")
 
 
 def validate_all(tables: dict[str, pd.DataFrame]) -> None:
@@ -195,7 +195,7 @@ def set_reference_date(orders: pd.DataFrame) -> None:
         )
 
     config.REFERENCE_DATE = max_date + pd.Timedelta(days=1)
-    logger.info(f"Referans tarih belirlendi → {config.REFERENCE_DATE.date()}")
+    logger.info(f"Referans tarih belirlendi -> {config.REFERENCE_DATE.date()}")
 
 
 # ── Aggregation'lar ───────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ def aggregate_payments(payments: pd.DataFrame) -> pd.DataFrame:
     )
 
     logger.info(
-        f"payments order-level aggregate edildi → {payments_agg.shape[0]:,} satır"
+        f"payments order-level aggregate edildi -> {payments_agg.shape[0]:,} satır"
     )
     return payments_agg
 
@@ -249,7 +249,7 @@ def aggregate_reviews(reviews: pd.DataFrame) -> pd.DataFrame:
     )
 
     logger.info(
-        f"reviews order-level aggregate edildi → {reviews_agg.shape[0]:,} satır"
+        f"reviews order-level aggregate edildi -> {reviews_agg.shape[0]:,} satır"
     )
     return reviews_agg
 
@@ -293,7 +293,7 @@ def create_item_level_table(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     )
 
     logger.info(
-        f"Item-level tablo → {df.shape[0]:,} satır, "
+        f"Item-level tablo -> {df.shape[0]:,} satır, "
         f"{df['order_id'].nunique():,} unique sipariş"
     )
     return df
@@ -325,7 +325,7 @@ def create_order_level_table(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     )
 
     logger.info(
-        f"Order-level tablo → {df.shape[0]:,} satır, "
+        f"Order-level tablo -> {df.shape[0]:,} satır, "
         f"{df['order_id'].nunique():,} unique sipariş"
     )
     return df
@@ -338,7 +338,7 @@ def report_missing(df: pd.DataFrame, table_name: str) -> None:
     missing = missing[missing > 0].sort_values(ascending=False)
 
     if missing.empty:
-        logger.info(f"{table_name}: Eksik değer bulunamadı ✓")
+        logger.info(f"{table_name}: Eksik değer bulunamadı")
         return
 
     logger.warning(f"{table_name}: Eksik değer raporu ({len(missing)} kolon)")
@@ -357,7 +357,7 @@ def save_parquet(df: pd.DataFrame, path: str) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
-    logger.info(f"Kaydedildi → {output_path}")
+    logger.info(f"Kaydedildi -> {output_path}")
 
 
 # ── Pipeline giriş noktası ────────────────────────────────────────────────────
@@ -397,7 +397,7 @@ def run() -> tuple[pd.DataFrame, pd.DataFrame]:
     save_parquet(order_level_df, PROCESSED_FILES["order_level"])
 
     logger.info("=" * 60)
-    logger.info("ADIM 1 tamamlandı ✓")
+    logger.info("ADIM 1 tamamlandı")
     logger.info(
         f"Item-level: {order_items_df.shape[0]:,} satır, "
         f"{order_items_df.shape[1]} kolon"
