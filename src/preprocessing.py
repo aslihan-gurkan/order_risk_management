@@ -1,31 +1,9 @@
-<<<<<<< HEAD
-=======
+
 #4
 
-# 1. Temporal Split - tarihe Göre
-# İlk %80 zaman -> train
-# Son %20 zaman -> test
-
-# 2. Feature / target ayrımı
-# X = features
-# y = problematic_order
-
-# Kolon Tipleri Ayırma (Numerical/Categorical)
-# N: price, freight_ratio, approval_delay_hours, estimated_delivery_days, seller_historical_problem_rate, etc.
-# C: payment_type, customer_state, seller_state_mode, main_product_category, etc.
-
-# Low cardinality categorical: OneHotEncoder
-# High cardinality categorical: TargetEncoder => main_seller_id, main_product_category, customer_city
-
-# problematic rate = %14.5
-
-
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
-"""
-Preprocessing modülü.
+""" Preprocessing modülü.
 
 Amaç:
-<<<<<<< HEAD
     Feature engineering sonrası oluşan featured.parquet dosyasını model eğitimine
     hazır hale getirmek.
 
@@ -42,43 +20,17 @@ Bu modülde:
 
 Kritik prensipler:
     - Test datası preprocessing fit aşamasında görülmez.
-    - SMOTE split öncesinde uygulanmaz.
+    - SMOTE split öncesinde uygulanabilir.
     - Review, delivery delay, risk_score gibi post-order bilgiler modele verilmez.
     - Outlier'lar körü körüne silinmez; extreme transactional behavior business signal olabilir.
 """
 
 from pathlib import Path
 from typing import Dict, List, Tuple
-=======
-    Feature engineering sonrası oluşan veriyi
-    modellemeye hazır hale getirmek.
-
-Bu modülde:
-    1. Veri yüklenir
-    2. Temporal filtre uygulanır
-    3. Missing değerler business-aware şekilde doldurulur
-    4. Train / test temporal split yapılır
-    5. Leakage ve ID kolonları çıkarılır
-    6. Numerical / categorical kolonlar ayrılır
-    7. sklearn preprocessing pipeline oluşturulur
-    8. Train / test parquet kaydedilir
-    9. Preprocessing pipeline kaydedilir
-
-Önemli:
-    Random split kullanılmaz.
-    Çünkü problem zaman bazlı tahmin problemidir.
-
-Production yaklaşımı:
-    Geçmiş siparişlerden öğren ->
-    gelecekteki siparişleri tahmin et
-"""
-from pathlib import Path
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
 import joblib
 import numpy as np
 import pandas as pd
-<<<<<<< HEAD
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
@@ -99,31 +51,9 @@ from src.config import (
 
 from src.logger import get_logger
 from src.utils.data_utils import grab_col_names
-=======
-
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import (
-    OneHotEncoder,
-    StandardScaler
-)
-
-from category_encoders.target_encoder import TargetEncoder
-
-from src.config import (
-    PROCESSED_FILES,
-    MODEL_FILES
-)
-
-
-from src.logger import get_logger
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
 logger = get_logger(__name__)
 
-
-<<<<<<< HEAD
 # ─────────────────────────────────────────────────────────────────────────────
 # Genel ayarlar
 # ─────────────────────────────────────────────────────────────────────────────
@@ -131,8 +61,7 @@ TARGET_COL = "problematic_order"
 
 MODEL_INPUT_PATH = Path(PROCESSED_FILES["train"]).parent / "model_input"
 PREPROCESSOR_PATH = Path(MODEL_FILES["preprocessor"])
-
-
+RAW_FEATURE_COLUMNS_PATH = Path(MODELS_PATH) / "raw_feature_columns.joblib"
 
 # Modelde kullanılmaması gereken kolonlar
 ID_COLS = [
@@ -144,21 +73,28 @@ ID_COLS = [
 ]
 
 # Label üretiminde kullanılan veya sipariş tamamlandıktan sonra bilinen kolonlar
+
 LEAKAGE_COLS = [
     "review_score",
     "review_creation_date",
     "review_comment_message",
     "review_comment_title",
     "review_missing",
+
     "delivery_delay_days",
     "is_undelivered",
+
     "label_low_review",
+    "label_very_low_review",
     "label_delivery_delay",
+    "label_severe_delivery_delay", # TODO ekle, çıkar ve analiz et
     "label_problematic_status",
+
     "risk_score",
+
     "order_delivered_customer_date",
     "order_delivered_carrier_date",
-    "order_status",  # label sinyaliyle ilişkili olduğu için modelden çıkarılır
+    "order_status" ## label sinyaliyle ilişkili olduğu için modelden çıkarılır
 ]
 
 # Raw datetime kolonları feature engineering sonrası modele doğrudan verilmez.
@@ -176,7 +112,7 @@ HIGH_CARDINALITY_DROP_COLS = [
 ]
 
 # Varsa modelden çıkarılacak ekstra kolonlar
-MANUAL_DROP_COLS = list(set(ID_COLS + LEAKAGE_COLS + DATE_COLS + HIGH_CARDINALITY_DROP_COLS))
+MANUAL_DROP_COLS = list(set(ID_COLS + LEAKAGE_COLS + DATE_COLS + HIGH_CARDINALITY_DROP_COLS + ["purchase_month"] ))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -276,162 +212,9 @@ def split_features_target(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
 
     logger.info(f"X shape: {X.shape}")
     logger.info(f"y dağılımı:\n{y.value_counts(normalize=True).to_string()}")
-=======
-# ── Sabitler ──────────────────────────────────────────────────────────────────
-
-from src.feature_config import (
-    DROP_COLUMNS,
-    HIGH_CARDINALITY_COLS,
-    LOW_CARDINALITY_COLS,
-    TARGET_COLUMN,
-)
-
-# ── Veri filtreleme ───────────────────────────────────────────────────────────
-def apply_temporal_filters(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Anomalik ve incomplete dönemleri çıkarır.
-
-    Neden?
-        2016 başı -> çok düşük hacimli anomalik kayıtlar
-        2018-09 sonrası -> incomplete period
-
-    Bu filtre temporal consistency sağlar.
-    """
-    before = len(df)
-
-    df = df[
-        (df["order_purchase_timestamp"] >= "2017-01-01") &
-        (df["order_purchase_timestamp"] < "2018-09-01")
-    ].copy()
-
-    after = len(df)
-
-    logger.info(
-        f"Temporal filtre uygulandı -> "
-        f"{before - after:,} satır çıkarıldı, "
-        f"{after:,} satır kaldı"
-    )
-
-    return df
-
-
-# ── Missing value işlemleri ───────────────────────────────────────────────────
-def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Missing değerleri business-aware şekilde doldurur.
-
-    Kritik yaklaşım:
-        Null gördüğümüz her satırı silmiyoruz.
-        Önce neden oluştuğunu anlamaya çalışıyoruz.
-
-    Örnek:
-        canceled/unavailable siparişlerde
-        item/seller bilgisi olmayabilir.
-    """
-
-    # ── Numerical business null'ları ────────────────────────────────────────
-    zero_fill_cols = [
-        "item_count",
-        "product_count",
-        "seller_count",
-        "total_price",
-        "total_freight_value",
-        "seller_historical_problem_count",
-        "seller_historical_order_count",
-    ]
-
-    for col in zero_fill_cols:
-        if col in df.columns:
-            df[col] = df[col].fillna(0)
-
-    # ── Seller bilgisi olmayanlar ───────────────────────────────────────────
-    if "main_seller_id" in df.columns:
-        df["main_seller_id"] = df["main_seller_id"].fillna(
-            "unknown_seller"
-        )
-
-    if "seller_state_mode" in df.columns:
-        df["seller_state_mode"] = df["seller_state_mode"].fillna(
-            "unknown"
-        )
-
-    # ── Payment bilgisi ─────────────────────────────────────────────────────
-    if "payment_type" in df.columns:
-        df["payment_type"] = df["payment_type"].fillna(
-            "unknown"
-        )
-
-    # ── Approval delay eksikleri ────────────────────────────────────────────
-    numeric_cols = df.select_dtypes(include=np.number).columns
-
-    for col in numeric_cols:
-        if df[col].isnull().sum() > 0:
-            median_value = df[col].median()
-            df[col] = df[col].fillna(median_value)
-
-    logger.info("Missing value işlemleri tamamlandı")
-
-    return df
-
-
-# ── Temporal split ────────────────────────────────────────────────────────────
-def temporal_split(df: pd.DataFrame):
-    """
-    Zamansal train/test split uygular.
-
-    Train:
-        2017-01 -> 2018-05
-
-    Test:
-        2018-06 -> 2018-08
-
-    Neden random split kullanmıyoruz?
-        Çünkü gerçek problem:
-            geçmişten öğren ->
-            geleceği tahmin et
-    """
-
-    train_df = df[
-        df["order_purchase_timestamp"] < "2018-06-01"
-    ].copy()
-
-    test_df = df[
-        df["order_purchase_timestamp"] >= "2018-06-01"
-    ].copy()
-
-    logger.info(
-        f"Temporal split tamamlandı -> "
-        f"train: {train_df.shape}, "
-        f"test: {test_df.shape}"
-    )
-
-    logger.info(
-        f"Train problematic oranı: "
-        f"{train_df[TARGET_COLUMN].mean():.2%}"
-    )
-
-    logger.info(
-        f"Test problematic oranı: "
-        f"{test_df[TARGET_COLUMN].mean():.2%}"
-    )
-
-    return train_df, test_df
-
-
-# ── Feature / target ayırma ──────────────────────────────────────────────────
-def split_features_target(df: pd.DataFrame):
-    """
-    Feature ve target kolonlarını ayırır.
-    """
-
-    X = df.drop(columns=[TARGET_COLUMN])
-    y = df[TARGET_COLUMN]
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     return X, y
 
-
-<<<<<<< HEAD
 def identify_feature_columns(X: pd.DataFrame) -> Tuple[List[str], List[str]]:
     """
     Model input için kategorik ve numerik kolonları belirler.
@@ -445,7 +228,9 @@ def identify_feature_columns(X: pd.DataFrame) -> Tuple[List[str], List[str]]:
         if col in X.columns
     ]
 
-    cat_cols = list(dict.fromkeys(cat_cols + keep_high_card_cols))
+    #cat_cols = list(dict.fromkeys(cat_cols + keep_high_card_cols))
+    cat_cols = list(dict.fromkeys(cat_cols + num_but_cat + keep_high_card_cols))
+    num_cols = [col for col in num_cols if col not in num_but_cat]
 
     # Gerçekten yüksek cardinality olan ve manuel drop listesinde olmayan kolonlar kaldıysa çıkarılır.
     # Bu güvenlik kontrolüdür.
@@ -515,89 +300,9 @@ def build_preprocessor(cat_cols: List[str], num_cols: List[str]) -> ColumnTransf
         ],
         remainder="drop",
     )
-=======
-# ── Preprocessing pipeline ────
-def build_preprocessor(X: pd.DataFrame):
-    """
-    sklearn preprocessing pipeline oluşturur.
-
-    Pipeline avantajı:
-        - train/test consistency
-        - inference consistency
-        - production-ready yapı
-    """
-
-    # ── Kategorik kolonları belirle ────
-    categorical_cols = X.select_dtypes(
-        include=["object", "string"]
-    ).columns.tolist()
-
-    # High-cardinality kolonlar
-    high_cardinality_cols = [
-        col for col in HIGH_CARDINALITY_COLS
-        if col in categorical_cols
-    ]
-
-    # Low-cardinality kolonlar
-    low_cardinality_cols = [
-        col for col in LOW_CARDINALITY_COLS
-        if col in categorical_cols
-    ]
-
-    # Numerical kolonlar
-    numerical_cols = [
-        col for col in X.columns
-        if col not in categorical_cols
-    ]
-
-    logger.info(f"Numerical kolon sayısı: {len(numerical_cols)}")
-    logger.info(f"Low-cardinality kolonlar: {low_cardinality_cols}")
-    logger.info(f"High-cardinality kolonlar: {high_cardinality_cols}")
-
-    # ── Numerical pipeline ────────────────────────────────────────────────
-    numerical_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-    ])
-
-    # ── Low-cardinality categorical ───────────────────────────────────────
-    low_cardinality_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore")),
-    ])
-
-    # ── High-cardinality categorical ──────────────────────────────────────
-    high_cardinality_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("target_encoder", TargetEncoder()),
-    ])
-
-    # ── ColumnTransformer ─────────────────────────────────────────────────
-    preprocessor = ColumnTransformer([
-        (
-            "numerical",
-            numerical_pipeline,
-            numerical_cols
-        ),
-        (
-            "low_cardinality",
-            low_cardinality_pipeline,
-            low_cardinality_cols
-        ),
-        (
-            "high_cardinality",
-            high_cardinality_pipeline,
-            high_cardinality_cols
-        ),
-    ])
-
-    logger.info("Preprocessing pipeline oluşturuldu")
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     return preprocessor
 
-
-<<<<<<< HEAD
 def get_transformed_feature_names(
     preprocessor: ColumnTransformer,
     cat_cols: List[str],
@@ -615,6 +320,40 @@ def get_transformed_feature_names(
 
     return feature_names
 
+
+#Undersampling
+def apply_resampling(X_train, y_train):
+    from imblearn.under_sampling import RandomUnderSampler
+    
+    rus = RandomUnderSampler(
+        sampling_strategy=0.5,
+        random_state=RANDOM_STATE
+    )
+    X_resampled, y_resampled = rus.fit_resample(X_train, y_train)
+    
+    logger.info(f"Undersampling öncesi: {X_train.shape}")
+    logger.info(f"Undersampling sonrası: {X_resampled.shape}")
+    logger.info(f"Yeni y dağılımı:\n{pd.Series(y_resampled).value_counts(normalize=True).to_string()}")
+    
+    return X_resampled, pd.Series(y_resampled, name=TARGET_COL)
+
+
+"""
+def apply_resampling(X_train, y_train):
+    from imblearn.over_sampling import SMOTE
+
+    smote = SMOTE(
+        sampling_strategy=0.30, 
+        random_state=RANDOM_STATE
+    )
+    X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
+
+    logger.info(f"SMOTE öncesi: {X_train.shape}")
+    logger.info(f"SMOTE sonrası: {X_resampled.shape}")
+    logger.info(f"Yeni y dağılımı:\n{pd.Series(y_resampled).value_counts(normalize=True).to_string()}")
+
+    return X_resampled, pd.Series(y_resampled, name=TARGET_COL)
+"""
 
 def apply_smote_if_enabled(
     X_train: np.ndarray,
@@ -639,7 +378,15 @@ def apply_smote_if_enabled(
             "Kurulum: pip install imbalanced-learn"
         ) from exc
 
-    smote = SMOTE(random_state=RANDOM_STATE)
+    from imblearn.combine import SMOTETomek
+    from imblearn.over_sampling import SMOTE
+    from imblearn.under_sampling import TomekLinks
+
+    smote = SMOTE(
+        sampling_strategy=0.15, 
+        random_state=RANDOM_STATE
+    )
+
     X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
 
     logger.info("SMOTE sadece train set üzerinde uygulandı.")
@@ -657,7 +404,8 @@ def save_preprocessing_outputs(
     y_test: pd.Series,
     preprocessor: ColumnTransformer,
     feature_names: List[str],
-    metadata: Dict,
+    raw_feature_columns: List[str],
+    metadata: Dict
 ) -> None:
     """Preprocessing çıktılarını diske kaydeder."""
     ensure_output_dir()
@@ -679,6 +427,7 @@ def save_preprocessing_outputs(
 
     Path(MODELS_PATH).mkdir(parents=True, exist_ok=True)
     joblib.dump(preprocessor, PREPROCESSOR_PATH)
+    joblib.dump(raw_feature_columns, RAW_FEATURE_COLUMNS_PATH)
 
     logger.info(f"Preprocessing çıktıları kaydedildi: {MODEL_INPUT_PATH}")
 
@@ -727,7 +476,8 @@ def run() -> Dict:
 
     feature_names = get_transformed_feature_names(preprocessor, cat_cols, num_cols)
 
-    X_train_final, y_train_final = apply_smote_if_enabled(X_train_processed, y_train)
+    #X_train_final, y_train_final = apply_smote_if_enabled(X_train_processed, y_train)
+    X_train_final, y_train_final = apply_resampling(X_train_processed, y_train)
 
     metadata = {
         "raw_rows_after_filter": len(df),
@@ -746,6 +496,9 @@ def run() -> Dict:
         "numeric_columns": ", ".join(num_cols),
     }
 
+    np.save(MODEL_INPUT_PATH / "X_train_raw.npy", X_train_processed)
+    np.save(MODEL_INPUT_PATH / "y_train_raw.npy", y_train.to_numpy())
+
     save_preprocessing_outputs(
         X_train=X_train_final,
         X_test=X_test_processed,
@@ -753,6 +506,7 @@ def run() -> Dict:
         y_test=y_test,
         preprocessor=preprocessor,
         feature_names=feature_names,
+        raw_feature_columns=X.columns.tolist(),
         metadata=metadata,
     )
 
@@ -767,91 +521,3 @@ def run() -> Dict:
 
 if __name__ == "__main__":
     run()
-=======
-# ── Ana pipeline ────
-def run():
-    """
-    Tüm preprocessing pipeline'ını çalıştırır.
-    """
-
-    logger.info("=" * 60)
-    logger.info("ADIM 4: Preprocessing başladı")
-    logger.info("=" * 60)
-
-    # ── Veri yükleme ─────
-    path = PROCESSED_FILES["featured"]
-
-    if not Path(path).exists():
-        raise FileNotFoundError(
-            "Önce feature_engineering.py çalıştırılmalı."
-        )
-
-    df = pd.read_parquet(path)
-
-    logger.info(
-        f"Featured veri yüklendi -> "
-        f"{df.shape[0]:,} satır, {df.shape[1]} kolon"
-    )
-
-    # ── Temporal filtre ───────────────────────────────────────────────────
-    df = apply_temporal_filters(df)
-
-    # ── Missing value işlemleri ───────────────────────────────────────────
-    df = handle_missing_values(df)
-
-    # ── Temporal split ────────────────────────────────────────────────────
-    train_df, test_df = temporal_split(df)
-
-    # ── Train/test kaydetme ───────────────────────────────────────────────
-    train_path = PROCESSED_FILES["train"]
-    test_path = PROCESSED_FILES["test"]
-
-    train_df.to_parquet(train_path, index=False)
-    test_df.to_parquet(test_path, index=False)
-
-    logger.info(f"Train kaydedildi -> {train_path}")
-    logger.info(f"Test kaydedildi -> {test_path}")
-
-    # ── Feature / target ayrımı ───────────────────────────────────────────
-    X_train, y_train = split_features_target(train_df)
-
-    # ── ID kolonlarını çıkar ──────────────────────────────────────────────
-    existing_drop_cols = [
-        col for col in DROP_COLUMNS
-        if col in X_train.columns
-    ]
-
-    X_train = X_train.drop(columns=existing_drop_cols)
-
-    logger.info(
-        f"Drop edilen kolonlar: {existing_drop_cols}"
-    )
-
-    # ── Preprocessor oluştur ──────────────────────────────────────────────
-    preprocessor = build_preprocessor(X_train)
-
-    # ── Fit ───────────────────────────────────────────────────────────────
-    preprocessor.fit(X_train, y_train)
-
-    logger.info("Preprocessor fit edildi")
-
-    # ── Kaydet ────────────────────────────────────────────────────────────
-    output_path = MODEL_FILES["preprocessor"]
-
-    joblib.dump(preprocessor, output_path)
-
-    logger.info(f"Preprocessor kaydedildi -> {output_path}")
-
-    logger.info("=" * 60)
-    logger.info("ADIM 4 tamamlandı ")
-    logger.info("=" * 60)
-
-    return {
-        "train_shape": train_df.shape,
-        "test_shape": test_df.shape,
-    }
-
-
-if __name__ == "__main__":
-    run()
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744

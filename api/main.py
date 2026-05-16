@@ -1,47 +1,63 @@
-print("MAIN.PY ÇALIŞTI")
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from api.services.prediction_service import predict_order_risk
 
-"""
-Ana pipeline çalıştırma dosyası.
-"""
-from src.logger import get_logger
-from src import data_loading
-from src import label_engineering
-from src import eda
-from src import feature_engineering
-from src import preprocessing
-from src import model_training
-from src import model_explainability
+from api.database import Base, engine, get_db
+from api.models import PredictionLog
+from api.schemas.prediction import (
+    PredictionRequest,
+    PredictionResponse,
+    PredictionLogResponse
+)
 
-logger = get_logger(__name__)
+app = FastAPI(
+    title="Ecommerce Order Risk API",
+    description="FastAPI service for problematic order risk prediction",
+    version="1.0.0",
+)
 
-from fastapi import FastAPI
 
-app = FastAPI()
+Base.metadata.create_all(bind=engine)
+
 
 @app.get("/")
 def root():
-    return {"message": "API çalışıyor"}
-
-def main():
-    """
-    Tüm ML pipeline'ını sırasıyla çalıştırır.
-    """
-    logger.info("=" * 80)
-    logger.info("Problematic Order Risk Prediction PIPELINE BAŞLADI") # Customer Order Risk Scoring System
-    logger.info("=" * 80)
-
-    data_loading.run()
-    label_engineering.run()
-    eda.run()
-    feature_engineering.run()
-    preprocessing.run()
-    model_training.run()
-    model_explainability.run()
-
-    logger.info("=" * 80)
-    logger.info("PIPELINE BAŞARIYLA TAMAMLANDI")
-    logger.info("=" * 80)
+    return {"message": "API is running"}
 
 
-if __name__ == "__main__":
-    main()
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "database": "connected"
+    }
+
+
+@app.post("/predict", response_model=PredictionResponse)
+def predict(request: PredictionRequest, db: Session = Depends(get_db)):
+
+    prediction_result = predict_order_risk(request.input_data)
+
+    log = PredictionLog(
+        input_data=request.input_data,
+        risk_probability=prediction_result["risk_probability"],
+        prediction=prediction_result["prediction"],
+        risk_level=prediction_result["risk_level"],
+        recommended_action=prediction_result["recommended_action"],
+    )
+
+    db.add(log)
+    db.commit()
+
+    return PredictionResponse(**prediction_result)
+
+@app.get("/prediction-history", response_model=list[PredictionLogResponse])
+def get_prediction_history(db: Session = Depends(get_db)):
+    logs = (
+        db.query(PredictionLog)
+        .order_by(PredictionLog.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    return logs

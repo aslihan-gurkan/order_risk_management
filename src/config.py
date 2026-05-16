@@ -31,7 +31,7 @@ FILES = {
     "products" : os.path.join(DATA_PATH, "olist_products_dataset.csv"),
     "customers": os.path.join(DATA_PATH, "olist_customers_dataset.csv"),
     "sellers"  : os.path.join(DATA_PATH, "olist_sellers_dataset.csv"),
-    "payments" : os.path.join(DATA_PATH, "olist_order_payments_dataset.csv"),
+    "payments" : os.path.join(DATA_PATH, "olist_order_payments_dataset.csv")
 }
 
 # ── İşlenmiş veri dosyaları ───────────────────────────────────────────────────
@@ -42,6 +42,8 @@ PROCESSED_FILES = {
     "featured"           : os.path.join(PROCESSED_PATH, "featured.parquet"),
     "train"              : os.path.join(PROCESSED_PATH, "train.parquet"),
     "test"               : os.path.join(PROCESSED_PATH, "test.parquet"),
+    "payments_raw"       : os.path.join(PROCESSED_PATH, "payments_raw.parquet"),
+    "items_raw"          : os.path.join(PROCESSED_PATH, "items_raw.parquet")
 }
 
 # ── Model dosyaları ───────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ MODEL_FILES = {
     "preprocessor": os.path.join(MODELS_PATH, "preprocessor.joblib"),
     "best_model"  : os.path.join(MODELS_PATH, "best_model.joblib"),
     "pipeline"    : os.path.join(MODELS_PATH, "pipeline.joblib"),
-    "metrics"     : os.path.join(OUTPUTS_PATH, "model_metrics.json"),
+    "metrics"     : os.path.join(OUTPUTS_PATH, "model_metrics.json")
 }
 
 # ── Klasörleri oluştur ────────────────────────────────────────────────────────

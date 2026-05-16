@@ -1,13 +1,11 @@
-<<<<<<< HEAD
-=======
+
 #6
 
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 """
 Model training modülü.
 
 Amaç:
-<<<<<<< HEAD
+
     Preprocessing sonrası oluşturulan model input dosyalarını kullanarak
     farklı modelleri benchmark etmek ve en iyi modeli kaydetmek.
 
@@ -29,34 +27,14 @@ Kritik prensip:
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple
-=======
-    Preprocessing aşamasından gelen train/test verileriyle
-    farklı modelleri eğitmek, karşılaştırmak ve en iyi modeli kaydetmek.
-
-Bu modülde:
-    1. Train ve test verisi okunur
-    2. Preprocessor yüklenir
-    3. Leakage ve ID kolonları çıkarılır
-    4. Feature matrisi dönüştürülür
-    5. Baseline modeller eğitilir
-    6. Metrikler hesaplanır
-    7. Threshold tuning yapılır
-    8. En iyi model ve metrikler kaydedilir
-
-Neden accuracy ana metrik değil?
-    Veri dengesiz olduğu için accuracy yanıltıcı olabilir.
-    Bu yüzden PR-AUC, Recall, F1 ve ROC-AUC birlikte değerlendirilir.
-"""
-import json
-from pathlib import Path
-
-from src.data_utils import prepare_features
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
+#from src.model_evaluation import ModelEvaluator
 
 import joblib
 import numpy as np
 import pandas as pd
-<<<<<<< HEAD
+
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -70,36 +48,20 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from src.config import (
-    MODEL_FILES,
-    OUTPUTS_PATH,
-=======
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    roc_auc_score,
-    average_precision_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    confusion_matrix,
-)
-
-from lightgbm import LGBMClassifier
+#from lightgbm import LGBMClassifier
 
 from src.config import (
     PROCESSED_FILES,
     MODEL_FILES,
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
     RANDOM_STATE,
+    OUTPUTS_PATH,
+    MODELS_PATH,
 )
+
 from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-<<<<<<< HEAD
 # ─────────────────────────────────────────────────────────────────────────────
 # Genel ayarlar
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,6 +71,9 @@ METRICS_OUTPUT_PATH = Path(OUTPUTS_PATH) / "metrics"
 
 BEST_MODEL_PATH = Path(MODEL_FILES["best_model"])
 MODEL_METRICS_PATH = Path(MODEL_FILES["metrics"])
+PREPROCESSOR_PATH = Path(MODEL_FILES["preprocessor"])
+PIPELINE_PATH = Path(MODEL_FILES["pipeline"])
+THRESHOLD_PATH = Path(MODELS_PATH) / "decision_threshold.joblib"
 
 TARGET_COL = "problematic_order"
 POSITIVE_CLASS = 1
@@ -170,51 +135,27 @@ def get_models() -> Dict[str, object]:
     Benchmark edilecek modelleri döndürür.
 
     Not:
-        XGBoost, LightGBM, CatBoost opsiyoneldir.
+        XGBoost, LightGBM, CatBoost 
         Kurulu değilse pipeline bozulmaz; sadece ilgili model atlanır.
-=======
-# Model listesi
-def get_models() -> dict:
-    """
-    Karşılaştırılacak baseline modelleri döner.
-
-    Logistic Regression:
-        Basit ve açıklanabilir baseline.
-
-    Random Forest:
-        Ağaç tabanlı klasik ensemble benchmark.
-
-    LightGBM:
-        Tabular veri için güçlü gradient boosting modeli.
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
     """
     models = {
         "logistic_regression": LogisticRegression(
             max_iter=1000,
             class_weight="balanced",
             random_state=RANDOM_STATE,
-<<<<<<< HEAD
-            n_jobs=-1,
+            n_jobs=-1
         ),
         "random_forest": RandomForestClassifier(
             n_estimators=300,
             max_depth=None,
             min_samples_leaf=5,
-=======
+            class_weight="balanced",
+            random_state=RANDOM_STATE
             # n_jobs=-1, kaldırıldı çünkü sklearn 1.8’de n_jobs etkisiz uyarısı veriyor.
         ),
-        "random_forest": RandomForestClassifier(
-            n_estimators=300,
-            max_depth=12,
-            min_samples_leaf=20,
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
-            class_weight="balanced",
-            random_state=RANDOM_STATE,
-            n_jobs=-1,
-        ),
-<<<<<<< HEAD
+
         "gradient_boosting": GradientBoostingClassifier(
-            random_state=RANDOM_STATE,
+            random_state=RANDOM_STATE
         ),
     }
 
@@ -223,13 +164,17 @@ def get_models() -> dict:
 
         models["xgboost"] = XGBClassifier(
             n_estimators=400,
-            max_depth=5,
+            max_depth=4,
             learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
+            scale_pos_weight=7,
+            min_child_weight=10,  # küçük node'ları engeller
+            reg_alpha=0.1,        # L1 regularization
+            reg_lambda=2.0,       # L2 regularization
             eval_metric="logloss",
             random_state=RANDOM_STATE,
-            n_jobs=-1,
+            n_jobs=-1
         )
     except ImportError:
         logger.warning("xgboost kurulu değil, XGBoost benchmark dışı bırakıldı.")
@@ -238,23 +183,15 @@ def get_models() -> dict:
         from lightgbm import LGBMClassifier
 
         models["lightgbm"] = LGBMClassifier(
-            n_estimators=500,
-            learning_rate=0.05,
-            num_leaves=31,
-=======
-        "lightgbm": LGBMClassifier(
-            n_estimators=500,
-            learning_rate=0.03,
-            max_depth=-1,
-            num_leaves=31,
-            subsample=0.8,
-            colsample_bytree=0.8,
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
+            n_estimators=200, # 500
+            learning_rate=0.03, # 0.05
+            max_depth=5,
+            num_leaves=20, # 31
+            min_child_samples=50,
             class_weight="balanced",
             random_state=RANDOM_STATE,
             n_jobs=-1,
-            verbose=-1,
-<<<<<<< HEAD
+            verbose=-1
         )
     except ImportError:
         logger.warning("lightgbm kurulu değil, LightGBM benchmark dışı bırakıldı.")
@@ -263,26 +200,22 @@ def get_models() -> dict:
         from catboost import CatBoostClassifier
 
         models["catboost"] = CatBoostClassifier(
-            iterations=500,
-            learning_rate=0.05,
-            depth=6,
+            iterations=300, # 500 -> 300 - daha az öğrenme adımı
+            learning_rate=0.03, # 0.05 -> 0.03 - daha yavaş öğrenme
+            depth=5, # 6 -> 5 - daha basit ağaç
+            l2_leaf_reg=10, # regularization, ezberi azaltır
             loss_function="Logloss",
             eval_metric="F1",
             auto_class_weights="Balanced",
             random_seed=RANDOM_STATE,
-            verbose=False,
+            verbose=False
         )
     except ImportError:
         logger.warning("catboost kurulu değil, CatBoost benchmark dışı bırakıldı.")
-=======
-        ),
-    }
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     return models
 
 
-<<<<<<< HEAD
 def get_positive_probabilities(model, X_test: np.ndarray) -> np.ndarray:
     """Modelden positive class probability değerlerini alır."""
     if hasattr(model, "predict_proba"):
@@ -322,6 +255,79 @@ def calculate_metrics(
     }
 
     return metrics
+
+def optimize_threshold_for_f1(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    thresholds: np.ndarray | None = None,
+) -> Dict[str, float]:
+    """F1-score'u maksimize eden threshold değerini bulur."""
+    if thresholds is None:
+        thresholds = np.arange(0.10, 0.91, 0.01)
+
+    rows = []
+    for threshold in thresholds:
+        metric_row = calculate_metrics(y_true, y_proba, threshold=float(threshold))
+        rows.append(metric_row)
+
+    result = pd.DataFrame(rows)
+    
+    # Recall >= 0.60 şartını sağlayanlar arasından en iyi F1'i seç
+    """filtered = result[result["recall"] >= 0.60]
+    if len(filtered) > 0:
+        best_row = filtered.sort_values("f1", ascending=False).iloc[0].to_dict()
+    else:
+        # 0.70 recall sağlanamazsa en iyi F2'yi al (fallback)
+        best_row = result.sort_values("f2", ascending=False).iloc[0].to_dict()
+"""
+    best_row = result.sort_values("f2", ascending=False).iloc[0].to_dict()
+    return best_row
+
+def run_optuna_xgboost(X_train, y_train, X_test, y_test, n_trials=50):
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    
+    def objective(trial):
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators", 100, 500),
+            "max_depth": trial.suggest_int("max_depth", 3, 7),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+            "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 1.0),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.5, 5.0),
+            "scale_pos_weight": trial.suggest_float("scale_pos_weight", 1.0, 10.0),
+            "eval_metric": "logloss",
+            "random_state": RANDOM_STATE,
+            "n_jobs": -1,
+        }
+        
+        from xgboost import XGBClassifier
+        model = XGBClassifier(**params)
+        model.fit(X_train, y_train)
+        
+        y_proba = model.predict_proba(X_test)[:, 1]
+        
+        # Recall >= 0.70 şartı altında F1'i maksimize et
+        thresholds = np.arange(0.10, 0.91, 0.01)
+        best_f1 = 0
+        for t in thresholds:
+            y_pred = (y_proba >= t).astype(int)
+            rec = recall_score(y_test, y_pred, zero_division=0)
+            f1 = f1_score(y_test, y_pred, zero_division=0)
+            if rec >= 0.70 and f1 > best_f1:
+                best_f1 = f1
+        
+        return best_f1
+    
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=n_trials)
+    
+    logger.info(f"Optuna best F1: {study.best_value:.4f}")
+    logger.info(f"Optuna best params: {study.best_params}")
+    
+    return study.best_params
 
 
 def optimize_threshold_for_f2(
@@ -366,7 +372,43 @@ def train_and_evaluate_models(
         y_proba = get_positive_probabilities(model, X_test)
 
         default_metrics = calculate_metrics(y_test, y_proba, threshold=0.50)
-        optimized_metrics = optimize_threshold_for_f2(y_test, y_proba)
+        optimized_metrics = optimize_threshold_for_f1(y_test, y_proba)#optimize_threshold_for_f2(y_test, y_proba)
+
+        #overfitting kontrolü
+        train_proba = get_positive_probabilities(model, X_train)
+        test_proba = get_positive_probabilities(model, X_test)
+
+        train_metrics_optimized = calculate_metrics(
+            y_train,
+            train_proba,
+            threshold=optimized_metrics["threshold"]
+        )
+
+        test_metrics_optimized = calculate_metrics(
+            y_test,
+            test_proba,
+            threshold=optimized_metrics["threshold"]
+        )
+
+        overfitting_gaps = {
+            "accuracy_gap": train_metrics_optimized["accuracy"] - test_metrics_optimized["accuracy"],
+            "precision_gap": train_metrics_optimized["precision"] - test_metrics_optimized["precision"],
+            "recall_gap": train_metrics_optimized["recall"] - test_metrics_optimized["recall"],
+            "f1_gap": train_metrics_optimized["f1"] - test_metrics_optimized["f1"],
+            "f2_gap": train_metrics_optimized["f2"] - test_metrics_optimized["f2"],
+            "roc_auc_gap": train_metrics_optimized["roc_auc"] - test_metrics_optimized["roc_auc"],
+            "pr_auc_gap": train_metrics_optimized["pr_auc"] - test_metrics_optimized["pr_auc"],
+        }
+
+        logger.info(
+            f"{model_name} | Overfitting check | "
+            f"Train F2={train_metrics_optimized['f2']:.4f}, "
+            f"Test F2={test_metrics_optimized['f2']:.4f}, "
+            f"F2 gap={overfitting_gaps['f2_gap']:.4f}, "
+            f"Train Recall={train_metrics_optimized['recall']:.4f}, "
+            f"Test Recall={test_metrics_optimized['recall']:.4f}, "
+            f"Recall gap={overfitting_gaps['recall_gap']:.4f}"
+        )
 
         result_row = {
             "model_name": model_name,
@@ -386,6 +428,19 @@ def train_and_evaluate_models(
             "fp_optimized": optimized_metrics["fp"],
             "fn_optimized": optimized_metrics["fn"],
             "tn_optimized": optimized_metrics["tn"],
+            "train_precision_optimized": train_metrics_optimized["precision"],
+            "train_recall_optimized": train_metrics_optimized["recall"],
+            "train_f1_optimized": train_metrics_optimized["f1"],
+            "train_f2_optimized": train_metrics_optimized["f2"],
+            "train_roc_auc": train_metrics_optimized["roc_auc"],
+            "train_pr_auc": train_metrics_optimized["pr_auc"],
+            #overfitting check
+            "precision_gap": overfitting_gaps["precision_gap"],
+            "recall_gap": overfitting_gaps["recall_gap"],
+            "f1_gap": overfitting_gaps["f1_gap"],
+            "f2_gap": overfitting_gaps["f2_gap"],
+            "roc_auc_gap": overfitting_gaps["roc_auc_gap"],
+            "pr_auc_gap": overfitting_gaps["pr_auc_gap"]
         }
 
         results.append(result_row)
@@ -393,6 +448,9 @@ def train_and_evaluate_models(
         model_details[model_name] = {
             "default_metrics": default_metrics,
             "optimized_metrics": optimized_metrics,
+            "train_metrics_optimized": train_metrics_optimized,
+            "test_metrics_optimized": test_metrics_optimized,
+            "overfitting_gaps": overfitting_gaps
         }
 
         logger.info(
@@ -406,10 +464,107 @@ def train_and_evaluate_models(
         )
 
     results_df = pd.DataFrame(results)
-    results_df = results_df.sort_values(SELECTION_METRIC, ascending=False)
+    results_df["business_score"] = (
+        results_df["recall_optimized"] * 0.50
+        + results_df["f1_optimized"] * 0.35
+        + results_df["pr_auc"] * 0.15
+    )
+
+    results_df["meets_mentor_target"] = (
+        (results_df["recall_optimized"] >= 0.70)
+        & (results_df["f1_optimized"] >= 0.60)
+    )
+
+    if results_df["meets_mentor_target"].any():
+        results_df = results_df.sort_values(
+            ["meets_mentor_target", "business_score"],
+            ascending=[False, False]
+        )
+    else:
+        results_df = results_df.sort_values(
+            "business_score",
+            ascending=False
+        )
+
+    #results_df = results_df.sort_values(SELECTION_METRIC, ascending=False)
 
     return results_df, trained_models, model_details
 
+def cross_validate_models(
+    models: Dict[str, object],
+    X: np.ndarray,
+    y: np.ndarray,
+    cv_splits: int = 5,
+) -> pd.DataFrame:
+    """
+    Modeller için stratified cross-validation uygular.
+    """
+
+    logger.info("=" * 60)
+    logger.info("Cross-validation başladı")
+    logger.info("=" * 60)
+
+    scoring = {
+        "precision": "precision",
+        "recall": "recall",
+        "f1": "f1",
+        "roc_auc": "roc_auc",
+    }
+
+    cv = StratifiedKFold(
+        n_splits=cv_splits,
+        shuffle=True,
+        random_state=RANDOM_STATE
+    )
+
+    cv_results = []
+
+    for model_name, model in models.items():
+
+        logger.info(f"CV çalışıyor: {model_name}")
+
+        scores = cross_validate(
+            estimator=model,
+            X=X,
+            y=y,
+            cv=cv,
+            scoring=scoring,
+            n_jobs=-1,
+            return_train_score=False
+        )
+
+        result = {
+            "model_name": model_name,
+
+            "cv_precision_mean": scores["test_precision"].mean(),
+            "cv_precision_std": scores["test_precision"].std(),
+
+            "cv_recall_mean": scores["test_recall"].mean(),
+            "cv_recall_std": scores["test_recall"].std(),
+
+            "cv_f1_mean": scores["test_f1"].mean(),
+            "cv_f1_std": scores["test_f1"].std(),
+
+            "cv_roc_auc_mean": scores["test_roc_auc"].mean(),
+            "cv_roc_auc_std": scores["test_roc_auc"].std(),
+        }
+
+        cv_results.append(result)
+
+        logger.info(
+            f"{model_name} | "
+            f"CV Recall={result['cv_recall_mean']:.4f} ± {result['cv_recall_std']:.4f} | "
+            f"CV F1={result['cv_f1_mean']:.4f} ± {result['cv_f1_std']:.4f} | "
+            f"CV ROC-AUC={result['cv_roc_auc_mean']:.4f} ± {result['cv_roc_auc_std']:.4f}"
+        )
+
+    cv_results_df = pd.DataFrame(cv_results)
+
+    logger.info("=" * 60)
+    logger.info("Cross-validation tamamlandı")
+    logger.info("=" * 60)
+
+    return cv_results_df
 
 def save_results(
     results_df: pd.DataFrame,
@@ -446,6 +601,17 @@ def save_results(
     pd.Series(feature_names, name="feature_name").to_csv(feature_path, index=False)
 
     joblib.dump(best_model, BEST_MODEL_PATH)
+    preprocessor = joblib.load(PREPROCESSOR_PATH)
+
+    final_pipeline = Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("model", best_model),
+        ]
+    )
+
+    joblib.dump(final_pipeline, PIPELINE_PATH)
+    joblib.dump(best_model_metrics["best_threshold"], THRESHOLD_PATH)
 
     with open(MODEL_METRICS_PATH, "w", encoding="utf-8") as file:
         json.dump(best_model_metrics, file, indent=4, ensure_ascii=False)
@@ -455,6 +621,8 @@ def save_results(
     logger.info(f"En iyi model kaydedildi: {BEST_MODEL_PATH}")
     logger.info(f"Benchmark sonuçları kaydedildi: {results_path}")
     logger.info(f"Model metrikleri kaydedildi: {MODEL_METRICS_PATH}")
+    logger.info(f"Final pipeline kaydedildi: {PIPELINE_PATH}")
+    logger.info(f"Decision threshold kaydedildi: {THRESHOLD_PATH}")
     logger.info("=" * 60)
 
 
@@ -467,10 +635,25 @@ def run() -> pd.DataFrame:
     ensure_output_dirs()
 
     X_train, X_test, y_train, y_test, feature_names = load_model_inputs()
+    X_train_raw = np.load(MODEL_INPUT_PATH / "X_train_raw.npy")
+    y_train_raw = np.load(MODEL_INPUT_PATH / "y_train_raw.npy")
+
     models = get_models()
 
     logger.info(f"Benchmark edilecek model sayısı: {len(models)}")
     logger.info(f"Modeller: {list(models.keys())}")
+
+    logger.info("Optuna XGBoost tuning başladı...")
+    best_xgb_params = run_optuna_xgboost(
+        X_train, y_train, X_test, y_test, n_trials=50
+    )
+    # En iyi parametreleri modele uygula
+    from xgboost import XGBClassifier
+    models["xgboost"] = XGBClassifier(
+        **best_xgb_params,
+        random_state=RANDOM_STATE,
+        n_jobs=-1
+    )
 
     results_df, trained_models, model_details = train_and_evaluate_models(
         models=models,
@@ -480,6 +663,16 @@ def run() -> pd.DataFrame:
         y_test=y_test,
     )
 
+    cv_results_df = cross_validate_models(
+        models=models, 
+        #X=X_train, y=y_train # SMOTE'lu
+        X=X_train_raw,  # Gerçek dağılım (%96/%4)
+        y=y_train_raw,
+    )
+
+    logger.info("Cross-validation sonuçları:")
+    logger.info(f"\n{cv_results_df.to_string(index=False)}")
+    
     logger.info("Model benchmark sonuçları:")
     logger.info(results_df.to_string(index=False))
 
@@ -490,6 +683,10 @@ def run() -> pd.DataFrame:
         feature_names=feature_names,
     )
 
+    cv_results_path = METRICS_OUTPUT_PATH / "cross_validation_results.csv"
+    cv_results_df.to_csv(cv_results_path, index=False)
+    logger.info(f"Cross-validation sonuçları kaydedildi: {cv_results_path}")
+
     logger.info("=" * 60)
     logger.info("ADIM 6 tamamlandı")
     logger.info("=" * 60)
@@ -499,186 +696,3 @@ def run() -> pd.DataFrame:
 
 if __name__ == "__main__":
     run()
-=======
-# Metrik hesaplama
-def calculate_metrics(
-    y_true: pd.Series,
-    y_proba: np.ndarray,
-    threshold: float = 0.5,
-) -> dict:
-    """
-    Verilen threshold'a göre classification metriklerini hesaplar.
-    """
-    y_pred = (y_proba >= threshold).astype(int)
-
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-
-    return {
-        "threshold": float(threshold),
-        "roc_auc": float(roc_auc_score(y_true, y_proba)),
-        "pr_auc": float(average_precision_score(y_true, y_proba)),
-        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
-        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
-        "true_negative": int(tn),
-        "false_positive": int(fp),
-        "false_negative": int(fn),
-        "true_positive": int(tp),
-    }
-
-
-# Threshold tuning
-def find_best_threshold(
-    y_true: pd.Series,
-    y_proba: np.ndarray,
-    metric: str = "f1",
-) -> tuple[float, dict]:
-    """
-    En iyi threshold değerini bulur.
-
-    Neden 0.5 sabit kullanmıyoruz?
-        İş probleminde false negative ve false positive maliyetleri eşit değildir.
-        Problematic siparişi kaçırmak çoğu durumda daha maliyetlidir.
-    """
-    thresholds = np.arange(0.10, 0.91, 0.01) # (0.10, 0.91, 0.01)
-
-    best_threshold = 0.5
-    best_metrics = None
-    best_score = -1
-
-    for threshold in thresholds:
-        metrics = calculate_metrics(y_true, y_proba, threshold)
-
-        score = metrics[metric]
-
-        if score > best_score:
-            best_score = score
-            best_threshold = threshold
-            best_metrics = metrics
-
-    return float(best_threshold), best_metrics
-
-
-# Ana pipeline
-def run() -> dict:
-    """
-    Model training pipeline'ını çalıştırır.
-    """
-    logger.info("=" * 60)
-    logger.info("ADIM 5: Model training başladı")
-    logger.info("=" * 60)
-
-    train_path = PROCESSED_FILES["train"]
-    test_path = PROCESSED_FILES["test"]
-
-    if not Path(train_path).exists() or not Path(test_path).exists():
-        raise FileNotFoundError(
-            "Train veya test dosyası bulunamadı. Önce preprocessing.py çalıştırılmalı."
-        )
-
-    train_df = pd.read_parquet(train_path)
-    test_df = pd.read_parquet(test_path)
-
-    logger.info(f"Train veri yüklendi: {train_df.shape}")
-    logger.info(f"Test veri yüklendi: {test_df.shape}")
-
-    X_train, y_train = prepare_features(train_df)
-    X_test, y_test = prepare_features(test_df)
-
-    logger.info(f"X_train boyutu: {X_train.shape}")
-    logger.info(f"X_test boyutu: {X_test.shape}")
-    logger.info(f"Train problematic oranı: {y_train.mean():.2%}")
-    logger.info(f"Test problematic oranı: {y_test.mean():.2%}")
-
-    preprocessor_path = MODEL_FILES["preprocessor"]
-
-    if not Path(preprocessor_path).exists():
-        raise FileNotFoundError(
-            "Preprocessor bulunamadı. Önce preprocessing.py çalıştırılmalı."
-        )
-
-    preprocessor = joblib.load(preprocessor_path)
-
-    X_train_processed = preprocessor.transform(X_train)
-    X_test_processed = preprocessor.transform(X_test)
-
-    logger.info(f"Processed X_train boyutu: {X_train_processed.shape}")
-    logger.info(f"Processed X_test boyutu: {X_test_processed.shape}")
-
-    models = get_models()
-
-    results = {}
-    best_model_name = None
-    best_model = None
-    best_score = -1
-
-    for model_name, model in models.items():
-        logger.info(f"Model eğitiliyor: {model_name}")
-
-        model.fit(X_train_processed, y_train)
-
-        y_proba = model.predict_proba(X_test_processed)[:, 1]
-
-        default_metrics = calculate_metrics(
-            y_true=y_test,
-            y_proba=y_proba,
-            threshold=0.5,
-        )
-
-        best_threshold, tuned_metrics = find_best_threshold(
-            y_true=y_test,
-            y_proba=y_proba,
-            metric="f1",
-        )
-
-        results[model_name] = {
-            "default_threshold_metrics": default_metrics,
-            "best_threshold": best_threshold,
-            "tuned_metrics": tuned_metrics,
-        }
-
-        logger.info(
-            f"{model_name} sonuçları | "
-            f"ROC-AUC: {tuned_metrics['roc_auc']:.4f} | "
-            f"PR-AUC: {tuned_metrics['pr_auc']:.4f} | "
-            f"Precision: {tuned_metrics['precision']:.4f} | "
-            f"Recall: {tuned_metrics['recall']:.4f} | "
-            f"F1: {tuned_metrics['f1']:.4f} | "
-            f"Threshold: {best_threshold:.2f}"
-        )
-
-        # Ana seçim metriği PR-AUC
-        model_score = tuned_metrics["pr_auc"]
-
-        if model_score > best_score:
-            best_score = model_score
-            best_model_name = model_name
-            best_model = model
-
-    output = {
-        "best_model_name": best_model_name,
-        "selection_metric": "pr_auc",
-        "best_score": float(best_score),
-        "results": results,
-    }
-
-    joblib.dump(best_model, MODEL_FILES["best_model"])
-
-    with open(MODEL_FILES["metrics"], "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=4, ensure_ascii=False)
-
-    logger.info(f"En iyi model: {best_model_name}")
-    logger.info(f"En iyi PR-AUC: {best_score:.4f}")
-    logger.info(f"Model kaydedildi: {MODEL_FILES['best_model']}")
-    logger.info(f"Metrikler kaydedildi: {MODEL_FILES['metrics']}")
-
-    logger.info("=" * 60)
-    logger.info("ADIM 5 tamamlandı")
-    logger.info("=" * 60)
-
-    return output
-
-
-if __name__ == "__main__":
-    run()
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744

@@ -1,17 +1,42 @@
 """
 Model explainability modülü.
+
+
+Amaç:
+    Eğitilen en iyi modelin kararlarını yorumlamak.
+    Eğitilen modelin hangi feature'lara göre risk tahmini yaptığını analiz etmek.
+
+Yöntem:
+    SHAP (SHapley Additive exPlanations)
+
+Bu modülde:
+    1. Best model yüklenir
+    2. Preprocessor yüklenir
+    3. Test verisi hazırlanır
+    4. Feature importance çıkarılır
+    5. SHAP analizi yapılır
+    6. Sonuçlar data/outputs altına kaydedilir
+
+    Model sadece tahmin üretmemelidir.
+    Operasyon ekipleri riskin neden oluştuğunu da anlamalıdır.
 """
+
 from pathlib import Path
+
 import joblib
 import pandas as pd
 import shap
 import numpy as np
 import matplotlib.pyplot as plt
-
 from src.config import (
     MODELS_PATH,
     OUTPUTS_PATH,
     PROCESSED_PATH,
+)
+
+from src.config import (
+    MODELS_PATH,
+    OUTPUTS_PATH,
 )
 from src.logger import get_logger
 
@@ -20,57 +45,81 @@ logger = get_logger(__name__)
 EXPLAINABILITY_OUTPUT_PATH = Path(OUTPUTS_PATH) / "explainability"
 EXPLAINABILITY_OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
-
 def generate_shap_analysis(
     model,
     X_sample: pd.DataFrame,
     max_display: int = 20,
 ):
-    """SHAP analizi oluşturur."""
+    """
+    SHAP analizi oluşturur.
+    """
+
     logger.info("=" * 60)
     logger.info("ADIM 7 - SHAP analizi başladı")
     logger.info("=" * 60)
+
     logger.info(f"Sample shape: {X_sample.shape}")
 
+    #explainer = shap.TreeExplainer(model)
     if hasattr(model, 'get_booster'):
         explainer = shap.TreeExplainer(model.get_booster())
     else:
         explainer = shap.TreeExplainer(model)
 
     shap_values = explainer.shap_values(X_sample)
-    logger.info("SHAP values hesaplandı")
-    print(type(shap_values))
-    print(shap_values.shape if hasattr(shap_values, 'shape') else len(shap_values))
 
-    # Random Forest için shap_values list döndürür — pozitif class al
-    if isinstance(shap_values, list):
-        sv = shap_values[1]
-    elif len(shap_values.shape) == 3:
-        sv = shap_values[:, :, 1]  # pozitif class
-    else:
-        sv = shap_values
+    logger.info("SHAP values hesaplandı")
 
     plt.figure()
+
     shap.summary_plot(
-        sv,
+        shap_values,
         X_sample,
         show=False,
         max_display=max_display
     )
-    summary_path = EXPLAINABILITY_OUTPUT_PATH / "shap_summary.png"
+
+    summary_path = (
+        EXPLAINABILITY_OUTPUT_PATH /
+        "shap_summary.png"
+    )
+
     plt.savefig(summary_path, bbox_inches="tight")
     plt.close()
+
     logger.info(f"SHAP summary kaydedildi: {summary_path}")
+
+    """importance_df = pd.DataFrame({
+        "feature": X_sample.columns,
+        "importance": abs(shap_values).mean(axis=0)
+    })"""
+    # Random Forest için shap_values list of arrays döndürür
+    # Pozitif class (index 1) kullan
+    if isinstance(shap_values, list):
+        sv = shap_values[1]
+    else:
+        sv = shap_values
 
     importance_df = pd.DataFrame({
         "feature": X_sample.columns,
         "importance": abs(sv).mean(axis=0)
     })
-    importance_df = importance_df.sort_values("importance", ascending=False)
 
-    importance_path = EXPLAINABILITY_OUTPUT_PATH / "feature_importance.csv"
+    importance_df = importance_df.sort_values(
+        "importance",
+        ascending=False
+    )
+
+    importance_path = (
+        EXPLAINABILITY_OUTPUT_PATH /
+        "feature_importance.csv"
+    )
+
     importance_df.to_csv(importance_path, index=False)
-    logger.info(f"Feature importance kaydedildi: {importance_path}")
+
+    logger.info(
+        f"Feature importance kaydedildi: {importance_path}"
+    )
 
     logger.info("=" * 60)
     logger.info("SHAP analizi tamamlandı")
@@ -81,22 +130,27 @@ def generate_shap_analysis(
 
 if __name__ == "__main__":
     logger.info("Model explainability başladı")
-
+    
+    # XGBoost yerine Random Forest yükle - SHAP uyumluluğu için
+    import joblib
+    from sklearn.ensemble import RandomForestClassifier
+    
+    # Tüm modelleri içeren benchmark sonuçlarından RF'i al
+    # En kolay yol: modeli yeniden eğit
     X_train = np.load(
         Path(PROCESSED_PATH) / "model_input" / "X_train.npy"
     )
     y_train = np.load(
         Path(PROCESSED_PATH) / "model_input" / "y_train.npy"
     )
-
+    
     feature_names = pd.read_csv(
         Path(PROCESSED_PATH) / "model_input" / "feature_names.csv"
     )
     feature_names = feature_names.iloc[:, 0].tolist()
-
-    from sklearn.ensemble import RandomForestClassifier
+    
+    # Random Forest eğit
     from src.config import RANDOM_STATE
-
     rf_model = RandomForestClassifier(
         n_estimators=300,
         max_depth=None,
@@ -105,16 +159,17 @@ if __name__ == "__main__":
         random_state=RANDOM_STATE
     )
     rf_model.fit(X_train, y_train)
-
+    
     X_sample = pd.DataFrame(
         X_train[:2000],
         columns=feature_names
     )
-
+    
     importance_df = generate_shap_analysis(
         model=rf_model,
         X_sample=X_sample,
     )
-
+    
     logger.info("\nTop 20 Feature Importance:")
     logger.info(f"\n{importance_df.head(20).to_string(index=False)}")
+

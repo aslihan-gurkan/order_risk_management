@@ -32,7 +32,7 @@ import pandas as pd
 from src.config import PROCESSED_FILES, OUTPUTS_PATH
 from src.logger import get_logger
 
-<<<<<<< HEAD
+
 from src.utils.data_utils import (
     grab_col_names,
     missing_values_table,
@@ -43,8 +43,6 @@ from src.utils.data_utils import (
     rare_analyser,
 )
 
-=======
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 logger = get_logger(__name__)
 
 
@@ -119,82 +117,6 @@ def prepare_datetime_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     return temp
 
-<<<<<<< HEAD
-=======
-
-def grab_col_names(
-    dataframe: pd.DataFrame,
-    cat_th: int = 10,
-    car_th: int = 20,
-) -> Tuple[List[str], List[str], List[str], List[str]]:
-
-    cat_cols = [
-        col for col in dataframe.columns
-        if dataframe[col].dtype == "O"
-        or pd.api.types.is_string_dtype(dataframe[col])
-        or pd.api.types.is_categorical_dtype(dataframe[col])
-    ]
-
-    num_cols = [
-        col for col in dataframe.columns
-        if pd.api.types.is_numeric_dtype(dataframe[col])
-    ]
-
-    num_but_cat = [
-        col for col in num_cols
-        if dataframe[col].nunique(dropna=True) < cat_th
-    ]
-
-    cat_but_car = [
-        col for col in cat_cols
-        if dataframe[col].nunique(dropna=True) > car_th
-    ]
-
-    cat_cols = cat_cols + num_but_cat
-    cat_cols = [col for col in cat_cols if col not in cat_but_car]
-
-    num_cols = [col for col in num_cols if col not in num_but_cat]
-
-    return cat_cols, num_cols, cat_but_car, num_but_cat
-
-def missing_values_table(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Eksik değer sayısı ve oranını döndürür."""
-    na_columns = [col for col in dataframe.columns if dataframe[col].isnull().sum() > 0]
-
-    result = pd.DataFrame({
-        "variable": na_columns,
-        "missing_count": [dataframe[col].isnull().sum() for col in na_columns],
-        "missing_ratio": [dataframe[col].isnull().mean() for col in na_columns],
-    }).sort_values("missing_ratio", ascending=False)
-
-    return result
-
-
-def outlier_thresholds(
-    dataframe: pd.DataFrame,
-    col_name: str,
-    q1: float = 0.05,
-    q3: float = 0.95,
-) -> Tuple[float, float]:
-    """IQR tabanlı alt ve üst outlier eşiklerini döndürür."""
-    quartile1 = dataframe[col_name].quantile(q1)
-    quartile3 = dataframe[col_name].quantile(q3)
-    interquantile_range = quartile3 - quartile1
-
-    up_limit = quartile3 + 1.5 * interquantile_range
-    low_limit = quartile1 - 1.5 * interquantile_range
-
-    return low_limit, up_limit
-
-
-def check_outlier(dataframe: pd.DataFrame, col_name: str) -> bool:
-    """Bir numerik değişkende outlier var mı kontrol eder."""
-    low_limit, up_limit = outlier_thresholds(dataframe, col_name)
-    outliers = dataframe[(dataframe[col_name] > up_limit) | (dataframe[col_name] < low_limit)]
-    return outliers.any(axis=None)
-
-
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 def outlier_summary(dataframe: pd.DataFrame, num_cols: List[str]) -> pd.DataFrame:
     """Numerik değişkenler için outlier özet tablosu üretir."""
     rows = []
@@ -226,90 +148,6 @@ def outlier_summary(dataframe: pd.DataFrame, num_cols: List[str]) -> pd.DataFram
 
     return pd.DataFrame(rows).sort_values("outlier_ratio", ascending=False)
 
-
-<<<<<<< HEAD
-=======
-def target_summary_with_cat(
-    dataframe: pd.DataFrame,
-    target: str,
-    categorical_col: str,
-    min_count: int = 50,
-) -> pd.DataFrame:
-    """Kategorik değişken kırılımında target oranını döndürür."""
-    result = (
-        dataframe
-        .groupby(categorical_col, dropna=False)
-        .agg(
-            order_count=(target, "count"),
-            problematic_count=(target, "sum"),
-            problematic_rate=(target, "mean"),
-        )
-        .reset_index()
-        .query("order_count >= @min_count")
-        .sort_values("problematic_rate", ascending=False)
-    )
-
-    return result
-
-
-def target_summary_with_num(
-    dataframe: pd.DataFrame,
-    target: str,
-    numerical_col: str,
-) -> pd.DataFrame:
-    """Target kırılımında numerik değişken özetini döndürür."""
-    result = (
-        dataframe
-        .groupby(target)
-        .agg(
-            count=(numerical_col, "count"),
-            mean=(numerical_col, "mean"),
-            median=(numerical_col, "median"),
-            min=(numerical_col, "min"),
-            max=(numerical_col, "max"),
-        )
-        .reset_index()
-    )
-
-    result.insert(0, "variable", numerical_col)
-    return result
-
-
-def rare_analyser(
-    dataframe: pd.DataFrame,
-    target: str,
-    cat_cols: List[str],
-    max_unique: int = 50,
-) -> pd.DataFrame:
-    """Kategorik değişkenlerde rare sınıf ve target oranı analizi yapar."""
-    rows = []
-
-    for col in cat_cols:
-        if col == target or dataframe[col].nunique(dropna=True) > max_unique:
-            continue
-
-        summary = (
-            dataframe
-            .groupby(col, dropna=False)
-            .agg(
-                count=(target, "count"),
-                ratio=(target, lambda x: len(x) / len(dataframe)),
-                target_mean=(target, "mean"),
-            )
-            .reset_index()
-        )
-
-        summary.insert(0, "variable", col)
-        summary = summary.rename(columns={col: "category"})
-        rows.append(summary)
-
-    if not rows:
-        return pd.DataFrame()
-
-    return pd.concat(rows, ignore_index=True)
-
-
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 # ─────────────────────────────────────────────────────────────────────────────
 # Veri kalite analizleri
 # ─────────────────────────────────────────────────────────────────────────────
@@ -742,6 +580,82 @@ def analyze_target_with_numeric_features(df: pd.DataFrame) -> pd.DataFrame:
     save_output(result, "eda_numeric_features_by_target.csv")
     return result
 
+def analyze_feature_level_insights(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Feature bazlı kolon kolon target analizi yapar.
+    Amaç:
+        - Hangi feature problematic_order ile ilişkili?
+        - Sunumda kullanılacak iş içgörülerini üretmek.
+        - Feature engineering kararlarını kanıtlamak.
+    """
+
+    analysis_results = []
+
+    binary_features = [
+        "is_weekend",
+        "is_night_order",
+        "is_multi_item_order",
+        "is_multi_seller_order",
+        "is_installment_payment",
+        "same_customer_seller_state",
+        "is_unknown_category",
+    ]
+
+    for col in binary_features:
+        if col in df.columns:
+            temp = target_summary_with_cat(
+                dataframe=df,
+                target=TARGET_COL,
+                categorical_col=col,
+                min_count=1,
+            )
+            temp["feature"] = col
+            temp["analysis_type"] = "binary_feature"
+            analysis_results.append(temp)
+
+    numeric_bucket_features = {
+        "freight_ratio": [0, 0.1, 0.2, 0.35, 0.5, np.inf],
+        "approval_delay_hours": [-np.inf, 1, 6, 12, 24, 48, np.inf],
+        "estimated_delivery_days": [-np.inf, 3, 7, 14, 21, 30, np.inf],
+        "seller_historical_problem_rate": [-np.inf, 0.05, 0.10, 0.20, 0.35, np.inf],
+        "category_historical_problem_rate": [-np.inf, 0.05, 0.10, 0.20, 0.35, np.inf],
+        "order_total_value": [-np.inf, 50, 100, 250, 500, 1000, np.inf],
+        "avg_item_price": [-np.inf, 25, 50, 100, 250, 500, np.inf],
+    }
+
+    for col, bins in numeric_bucket_features.items():
+        if col in df.columns:
+            bucket_col = f"{col}_bucket"
+            temp_df = df.copy()
+
+            temp_df[bucket_col] = pd.cut(
+                temp_df[col],
+                bins=bins,
+                include_lowest=True,
+                duplicates="drop",
+            )
+
+            temp = target_summary_with_cat(
+                dataframe=temp_df,
+                target=TARGET_COL,
+                categorical_col=bucket_col,
+                min_count=20,
+            )
+
+            temp["feature"] = col
+            temp["analysis_type"] = "bucketed_numeric_feature"
+            analysis_results.append(temp)
+
+    if not analysis_results:
+        result = pd.DataFrame()
+        save_output(result, "eda_feature_level_insights.csv")
+        return result
+
+    result = pd.concat(analysis_results, ignore_index=True)
+    save_output(result, "eda_feature_level_insights.csv")
+
+    return result
+
 
 def analyze_rare_categories(df: pd.DataFrame) -> pd.DataFrame:
     """Rare kategorik sınıf analizi yapar."""
@@ -760,11 +674,7 @@ def analyze_rare_categories(df: pd.DataFrame) -> pd.DataFrame:
 def run() -> dict:
     """EDA pipeline'ını çalıştırır."""
     logger.info("=" * 60)
-<<<<<<< HEAD
     logger.info("ADIM 4: EDA başladı")
-=======
-    logger.info("ADIM 3A: EDA başladı")
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
     logger.info("=" * 60)
 
     ensure_output_dirs()
@@ -814,6 +724,7 @@ def run() -> dict:
     delay_buckets = analyze_delay_buckets(labeled_df)
     correlation_matrix = analyze_correlation_matrix(featured_df)
     numeric_target_summary = analyze_target_with_numeric_features(featured_df)
+    feature_level_insights = analyze_feature_level_insights(featured_df)
     rare_categories = analyze_rare_categories(featured_df)
 
     logger.info("Target dağılımı:")
@@ -826,12 +737,7 @@ def run() -> dict:
     logger.info(variable_type_summary)
 
     logger.info("=" * 60)
-<<<<<<< HEAD
-    logger.info("ADIM 4 tamamlandı")
-=======
-    logger.info("ADIM 3A tamamlandı")
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
-    logger.info("=" * 60)
+    logger.info("ADIM 4 EDA tamamlandı")
 
     return {
         "target_distribution_rows": len(target_dist),
@@ -849,6 +755,7 @@ def run() -> dict:
         "delay_bucket_rows": len(delay_buckets),
         "correlation_rows": len(correlation_matrix),
         "numeric_target_summary_rows": len(numeric_target_summary),
+        "feature_level_insight_rows": len(feature_level_insights),
         "rare_category_rows": len(rare_categories),
         "variable_type_summary": variable_type_summary,
     }

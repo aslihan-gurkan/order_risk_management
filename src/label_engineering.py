@@ -107,7 +107,7 @@ def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
     """
     Binary hedef değişkeni risk_score mantığıyla oluşturur.
 
-    Neden eski OR mantığını değiştirdik?
+    Eski OR mantığı değiştirildi
         Eski yaklaşımda review_score <= 2 tek başına problematic_order=1 yapıyordu.
         Bu da target'ı düşük review sinyalinin domine etmesine ve noisy label'a neden oluyordu.
 
@@ -135,22 +135,15 @@ def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
     df["label_delivery_delay"] = (
         (df["is_undelivered"] == 0) &
         (df["delivery_delay_days"] > DELIVERY_DELAY_THRESHOLD)
-<<<<<<< HEAD
     ).astype(int)
 
     df["label_severe_delivery_delay"] = (
         (df["is_undelivered"] == 0) &
         (df["delivery_delay_days"] > 15)
     ).astype(int)
-=======
-    ).astype(int) 
-    # Teslim edildiyse ve geç kaldıysa -> delivery delay
-    # Teslim edilmediyse -> status problem
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     df["label_problematic_status"] = (
-        df["order_status"].isin(PROBLEMATIC_ORDER_STATUSES)
-    ).astype(int)
+        df["order_status"].isin(PROBLEMATIC_ORDER_STATUSES)).astype(int)
 
     # Risk score
     df["risk_score"] = 0
@@ -167,12 +160,21 @@ def create_target_label(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df["label_problematic_status"] == 1, "risk_score"] += 4
 
     # Final target
-    # 3 ve üzeri:
+    # 2 ve üzeri:
     #   - ciddi gecikme
     #   - status problemi
     #   - çok düşük review + başka sinyal kombinasyonu
     # gibi daha anlamlı problematic order'ları yakalar.
-    df["problematic_order"] = (df["risk_score"] >= 3).astype(int)
+    #df["problematic_order"] = (df["risk_score"] >= 2).astype(int)
+
+    df["problematic_order"] = (
+        df["label_problematic_status"] == 1
+    ).astype(int)
+
+    """df["problematic_order"] = (
+        (df["label_problematic_status"] == 1) |
+        (df["label_severe_delivery_delay"] == 1)
+    ).astype(int)"""
 
     logger.info("Risk score dağılımı:")
     logger.info(df["risk_score"].value_counts().sort_index().to_string())
@@ -258,13 +260,9 @@ def run() -> pd.DataFrame:
 
     df = pd.read_parquet(path)
 
-<<<<<<< HEAD
     logger.info(
         f"Order-level veri yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} kolon"
     )
-=======
-    logger.info(f"Order-level veri yüklendi -> {df.shape[0]:,} satır, {df.shape[1]} kolon")
->>>>>>> b76eb810bfb118acd8ca344fa7242c89374e1744
 
     df = filter_modeling_orders(df)
     df = calculate_delivery_delay(df)

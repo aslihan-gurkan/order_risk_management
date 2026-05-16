@@ -5,7 +5,8 @@ pyarrow>=14.0.0
 
 # Makine öğrenmesi
 scikit-learn>=1.7.2
-xgboost>=2.0.0
+#xgboost>=2.0.0
+xgboost==2.1.4
 lightgbm>=4.1.0
 catboost>=1.2.0
 imbalanced-learn>=0.11.0
@@ -14,7 +15,8 @@ imbalanced-learn>=0.11.0
 optuna>=3.5.0
 
 # Model yorumlama
-shap>=0.44.0
+#shap>=0.46.0
+shap==0.46.0
 
 # NLP
 textblob>=0.17.0
@@ -43,3 +45,9 @@ geopy>=2.4.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 alembic>=1.13.0
+
+
+#AI
+openai
+google-genai
+python-dotenv

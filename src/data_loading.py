@@ -395,6 +395,8 @@ def run() -> tuple[pd.DataFrame, pd.DataFrame]:
     # Kaydet
     save_parquet(order_items_df, PROCESSED_FILES["order_items_level"])
     save_parquet(order_level_df, PROCESSED_FILES["order_level"])
+    save_parquet(tables["payments"], PROCESSED_FILES["payments_raw"])
+    save_parquet(tables["items"],    PROCESSED_FILES["items_raw"])
 
     logger.info("=" * 60)
     logger.info("ADIM 1 tamamlandı")

@@ -278,6 +278,118 @@ def add_historical_risk_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_payment_features(df: pd.DataFrame, payments_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ham payments tablosundan türetilen gelişmiş ödeme feature'ları.
+    """
+    # Karışık ödeme tipi kullanan siparişler — boleto + kredi kartı gibi
+    payment_type_count = (
+        payments_raw.groupby("order_id")["payment_type"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"payment_type": "payment_type_count"})
+    )
+
+    # Voucher kullanımı — indirim kuponu = beklenti uyuşmazlığı riski
+    voucher_flag = (
+        payments_raw.groupby("order_id")["payment_type"]
+        .apply(lambda x: int("voucher" in x.values))
+        .reset_index()
+        .rename(columns={"payment_type": "has_voucher"})
+    )
+
+    # Boleto kullanımı — Brezilya'ya özgü, gecikmeli ödeme = iptal riski
+    boleto_flag = (
+        payments_raw.groupby("order_id")["payment_type"]
+        .apply(lambda x: int("boleto" in x.values))
+        .reset_index()
+        .rename(columns={"payment_type": "has_boleto"})
+    )
+
+    df = df.merge(payment_type_count, on="order_id", how="left")
+    df = df.merge(voucher_flag, on="order_id", how="left")
+    df = df.merge(boleto_flag, on="order_id", how="left")
+
+    df["payment_type_count"] = df["payment_type_count"].fillna(1)
+    df["has_voucher"] = df["has_voucher"].fillna(0).astype(int)
+    # Brezilya'da boleto ödemesi banka üzerinden yapılır, gecikmesi veya iptali çok daha sık oluşur.
+    df["has_boleto"] = df["has_boleto"].fillna(0).astype(int)
+
+    logger.info("Gelişmiş ödeme feature'ları oluşturuldu")
+    return df
+
+def add_shipping_urgency_features(df: pd.DataFrame, items_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Kargo son tarihi ile sipariş tarihi arasındaki süre.
+    Satıcının kargoya verme için ne kadar vakti var?
+    """
+    shipping_urgency = (
+        items_raw.groupby("order_id")["shipping_limit_date"]
+        .min()  # en erken kargo limiti
+        .reset_index()
+        .rename(columns={"shipping_limit_date": "earliest_shipping_limit"})
+    )
+
+    df = df.merge(shipping_urgency, on="order_id", how="left")
+
+    df["shipping_limit_days"] = (
+        pd.to_datetime(df["earliest_shipping_limit"]) -
+        pd.to_datetime(df["order_purchase_timestamp"])
+    ).dt.days
+
+    df["is_urgent_shipping"] = (df["shipping_limit_days"] <= 3).astype(int)
+    df = df.drop(columns=["earliest_shipping_limit"])
+
+    logger.info("Kargo aciliyet feature'ları oluşturuldu")
+    return df
+
+
+def add_advanced_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Model sinyal gücünü artıracak ek feature'lar üretir.
+    """
+    df = df.sort_values("order_purchase_timestamp").copy()
+
+    # 1. Satıcı başına sipariş yoğunluğu — çok siparişli satıcılar daha riskli mi?
+    seller_order_velocity = (
+        df.groupby("main_seller_id")["order_id"]
+        .transform("count")
+    )
+    df["seller_total_order_count"] = seller_order_velocity
+
+    # 2. Müşteri ilk siparişi mi? — yeni müşteriler farklı risk profiline sahip
+    df["is_first_order"] = (df["customer_historical_orders"] == 0).astype(int)
+
+    # 3. Yüksek riskli satıcı flag — seller_historical_problem_rate üst %25
+    threshold = df["seller_historical_problem_rate"].quantile(0.75)
+    df["is_high_risk_seller"] = (
+        df["seller_historical_problem_rate"] >= threshold
+    ).astype(int)
+
+    # 4. Yüksek riskli kategori flag
+    threshold_cat = df["category_historical_problem_rate"].quantile(0.75)
+    df["is_high_risk_category"] = (
+        df["category_historical_problem_rate"] >= threshold_cat
+    ).astype(int)
+
+    # 5. Satıcı deneyimsizlik flag — az siparişli satıcı
+    df["is_new_seller"] = (df["seller_historical_order_count"] <= 5).astype(int)
+
+    # 6. Kargo/fiyat oranı yüksek + çok ürün kombinasyonu — operasyonel yük
+    df["heavy_multiitem_order"] = (
+        (df["is_multi_item_order"] == 1) &
+        (df["freight_ratio"] > 0.3)
+    ).astype(int)
+
+    # 7. Uzun tahmini teslimat + yüksek riskli satıcı kombinasyonu
+    df["risky_long_delivery"] = (
+        (df["estimated_delivery_days"] > 20) &
+        (df["is_high_risk_seller"] == 1)
+    ).astype(int)
+
+    logger.info("Gelişmiş feature'lar oluşturuldu")
+    return df
+
 # ── Leakage kolonlarını temizleme ─────────────────────────────────────────────
 def drop_leakage_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -291,15 +403,21 @@ def drop_leakage_columns(df: pd.DataFrame) -> pd.DataFrame:
     "risk_score",
     "review_creation_date",
     "review_comment_message",
+    "review_comment_title",
     "review_missing",
+
     "delivery_delay_days",
     "is_undelivered",
-    "label_low_review",
-    "label_delivery_delay",
-    "label_problematic_status",
-    "order_delivered_customer_date",
-    "order_delivered_carrier_date"
 
+    "label_low_review",
+    "label_very_low_review",
+    "label_delivery_delay",
+    "label_severe_delivery_delay", # TODO ekle ve analiz et
+    "label_problematic_status",
+
+    "order_delivered_customer_date",
+    "order_delivered_carrier_date",
+    "order_status",
 ]
 
     existing_cols = [col for col in leakage_cols if col in df.columns]
@@ -318,7 +436,7 @@ def run() -> pd.DataFrame:
         Modellemeye hazır feature seti
     """
     logger.info("=" * 60)
-    logger.info("ADIM 3B: Feature engineering başladı")
+    logger.info("ADIM 3: Feature engineering başladı")
     logger.info("=" * 60)
 
     order_path = PROCESSED_FILES["order_level_labeled"]
@@ -332,6 +450,11 @@ def run() -> pd.DataFrame:
 
     order_df = pd.read_parquet(order_path)
     item_df = pd.read_parquet(item_path)
+    payments_raw = pd.read_parquet(PROCESSED_FILES["payments_raw"])
+    items_raw = pd.read_parquet(PROCESSED_FILES["items_raw"])
+    items_raw["shipping_limit_date"] = pd.to_datetime(
+        items_raw["shipping_limit_date"], errors="coerce"
+    )
 
     logger.info(f"Order-level labeled veri yüklendi -> {order_df.shape}")
     logger.info(f"Item-level veri yüklendi -> {item_df.shape}")
@@ -345,6 +468,9 @@ def run() -> pd.DataFrame:
     df = add_product_category_features(df, item_df)
     df = add_product_physical_features(df, item_df)
     df = add_historical_risk_features(df)
+    df = add_advanced_features(df)
+    df = add_payment_features(df, payments_raw)  
+    df = add_shipping_urgency_features(df, items_raw) 
     df = drop_leakage_columns(df)
 
     output_path = PROCESSED_FILES["featured"]
