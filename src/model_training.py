@@ -470,14 +470,14 @@ def train_and_evaluate_models(
         + results_df["pr_auc"] * 0.15
     )
 
-    results_df["meets_mentor_target"] = (
+    results_df["meets_target"] = (
         (results_df["recall_optimized"] >= 0.70)
         & (results_df["f1_optimized"] >= 0.60)
     )
 
-    if results_df["meets_mentor_target"].any():
+    if results_df["meets_target"].any():
         results_df = results_df.sort_values(
-            ["meets_mentor_target", "business_score"],
+            ["meets_target", "business_score"],
             ascending=[False, False]
         )
     else:
